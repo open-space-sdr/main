@@ -1,0 +1,4 @@
+../Core/Src/fpga.c:19:6:fpga_init	16	static
+../Core/Src/fpga.c:32:6:reg_write	24	static
+../Core/Src/fpga.c:46:10:reg_read	24	static
+../Core/Src/fpga.c:68:6:setup_reg	24	static
