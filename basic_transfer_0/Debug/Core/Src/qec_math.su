@@ -1,5 +1,0 @@
-../Core/Inc/math_utils.h:83:23:q15_saturate	16	static
-../Core/Src/qec_math.c:15:17:isqrt_u64	64	static
-../Core/Src/qec_math.c:36:16:q31_from_ratio_int64	64	static
-../Core/Src/qec_math.c:62:5:qec_calc_q31	136	static
-../Core/Src/qec_math.c:95:5:qec_calc_q15	200	static

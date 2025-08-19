@@ -1,4 +1,0 @@
-../Core/Src/max2851.c:14:6:write_max2851_base_regs	8
-../Core/Src/max2851.c:70:6:set_Rx	2
-../Core/Src/max2851.c:79:6:set_Rx_gain	1
-../Core/Src/max2851.c:83:6:set_RxIdle	1

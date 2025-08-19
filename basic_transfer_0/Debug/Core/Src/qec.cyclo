@@ -1,8 +1,0 @@
-../Core/Inc/math_utils.h:83:23:q15_saturate	3
-../Core/Inc/math_utils.h:108:23:q15_div	3
-../Core/Inc/math_utils.h:173:23:sin_q15_from_rad	3
-../Core/Inc/math_utils.h:192:23:cos_q15_from_rad	2
-../Core/Src/qec.c:16:6:qec_set_tx_tone_q16	1
-../Core/Src/qec.c:25:6:qec_correlator_measure	1
-../Core/Src/qec.c:59:6:qec_apply_rx_correction_q15	5
-../Core/Src/qec.c:76:6:qec_apply_tx_correction_q15	1

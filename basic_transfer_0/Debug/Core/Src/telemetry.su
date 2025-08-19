@@ -1,3 +1,0 @@
-../Core/Src/telemetry.c:20:10:telem_read_sel	16	static
-../Core/Src/telemetry.c:32:6:telem_read_basic	24	static
-../Core/Src/telemetry.c:54:6:telem_print_compact	32	static

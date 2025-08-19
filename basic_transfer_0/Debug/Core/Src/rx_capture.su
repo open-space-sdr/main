@@ -1,2 +1,0 @@
-../Core/Src/rx_capture.c:21:6:rx_timing_capture_read	32	static
-../Core/Src/rx_capture.c:58:10:rx_iq_read_block	32	static

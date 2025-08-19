@@ -1,3 +1,0 @@
-../Core/Src/modem_metrics.c:15:24:mm_read32_sel	1
-../Core/Src/modem_metrics.c:23:24:delta32	1
-../Core/Src/modem_metrics.c:38:13:mm_get_metric_q15	10
