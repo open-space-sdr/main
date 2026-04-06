@@ -1,4 +1,6 @@
-# MoonRF
+![MoonRF](images/MoonRF_banner.png)
+
+# MoonRF 
 
 MoonRF is an open-source phased-array hardware & software initiative—with a focus on space applications.
 
@@ -6,7 +8,7 @@ We'll be cleaning this up over the next month or two in preparation for the hard
 
 ## Hardware
 
-More information at https://moonrf.com/
+🌕 More information at https://moonrf.com/
 
 - Capable of transmitting signals to the moon and receiving echoes (allowing communication on the same side of the Earth).
 - Operates over **40 MHz of bandwidth in the C-band (4.9–6 GHz)**
