@@ -15,7 +15,7 @@ We'll be cleaning this up over the next month or two in preparation for the hard
 - Composed of 60 RF modules with 4 antennas each (240 antennas total).
 - Every antenna element supports full digital waveform synthesis and reception.
 - Designed for high directivity and strong Effective Isotropic Radiated Power (EIRP) — targeting **4 MW** in baseline configuration  
-- Modular and reconfigurable—users can scale or adapt arrays to track smaller satellites and debris  
+- Modular and reconfigurable 
 
 ## License
 
