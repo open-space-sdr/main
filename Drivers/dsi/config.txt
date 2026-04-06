@@ -1,0 +1,6 @@
+[all]
+
+dtoverlay=fpga-dsi
+dtoverlay=fpga-csi
+
+

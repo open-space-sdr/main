@@ -1,12 +1,10 @@
-# open.space
+# MoonRF
 
-open.space is an open-source radar hardware & software initiative—with a focus on space applications.
-
-Currently there is very little released on github. But that will change in the coming months!
+MoonRF is an open-source radar hardware & software initiative—with a focus on space applications.
 
 ## Hardware
 
-Our initial **software-defined radio phased array** is expected to ship in **March 2026** (subject to change).
+More information at https://moonrf.com/
 
 - Capable of transmitting signals to the moon and receiving echoes (allowing communication on the same side of the Earth).
 - Operates over **40 MHz of bandwidth in the C-band (4.9–6 GHz)**
@@ -15,3 +13,6 @@ Our initial **software-defined radio phased array** is expected to ship in **Mar
 - Designed for high directivity and strong Effective Isotropic Radiated Power (EIRP) — targeting **4 MW** in baseline configuration  
 - Modular and reconfigurable—users can scale or adapt arrays to track smaller satellites and debris  
 
+## License
+
+Nearly all the software is open-source while making our hardware as accessible as possible. This link gives details: https://open.space/updates/#faq

@@ -1,0 +1,49 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+    compatible = "brcm,bcm2712";
+
+    /* RP1 DSI0 controller (Pi 5). Change to dsi@128000 for DSI1. */
+    fragment@0 {
+        target-path = "/axi/pcie@1000120000/rp1/dsi@110000";
+        __overlay__ {
+            status = "okay";
+
+            #address-cells = <1>;
+            #size-cells    = <0>;
+
+            port {
+                dsi_out: endpoint {
+                    data-lanes = <0 1>;
+                    remote-endpoint = <&fpga_dsi_in>;
+                };
+            };
+
+            /* Zero-DCS sink as a CHILD of the DSI host (VC0) */
+            panel@0 {
+                compatible = "acme,dsi-stream-panel";
+                status = "okay";
+                reg = <0>;                            /* DSI VC = 0 */
+
+                /* Driver hints (read by fpga-dsi.c) */
+                acme,bytes-per-line = <3072>;         /* payload bytes per line */ // make div 3
+                acme,height         = <1080>;         /* lines per frame        */
+                acme,fps            = <26>;           /* refresh rate           */
+                acme,lanes          = <2>;            /* DSI data lanes         */
+                acme,continuous-clock;                /* keep HS clock running  */
+                acme,format         = "rgb888";     /* or "rgb888"            */
+
+                acme,stream-mode = "raw";	/* acme,stream-mode = "iq-f32"; for float32 IQ mode */
+                
+
+                port {
+                    fpga_dsi_in: endpoint {
+                        data-lanes = <0 1>;
+                        remote-endpoint = <&dsi_out>;
+                    };
+                };
+            };
+        };
+    };
+};
