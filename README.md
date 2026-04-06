@@ -1,6 +1,6 @@
 # MoonRF
 
-MoonRF is an open-source radar hardware & software initiative—with a focus on space applications.
+MoonRF is an open-source phased-array hardware & software initiative—with a focus on space applications.
 
 We'll be cleaning this up over the next month or two in preparation for the hardware release on Crowd Supply.
 
