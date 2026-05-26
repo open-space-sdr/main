@@ -19,4 +19,4 @@ We'll be cleaning this up over the next month or two in preparation for the hard
 
 ## License
 
-Nearly all the software is open-source while making our hardware as accessible as possible. This link gives details: https://open.space/updates/#faq
+Nearly all the software is open-source while making our hardware as accessible as possible. This link gives details: https://moonrf.com/updates/#faq
