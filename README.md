@@ -67,8 +67,6 @@ All open-source software files and schematics are available right now. Antenna d
 
 ## Legal
 
-<sub>This repository contains released MoonRF and related Scale RF antenna and mechanical design files. Scale RF's goal is to make the released antenna ecosystem useful to makers, researchers, hams, educators, and commercial users while preserving a reciprocal defensive patent framework and protecting the QuadRF RF Board / Tile and other RF-core designs.</sub>
-
 #### Community use
 
 <sub>We want QuadRF and MoonRF to be something the community can actually learn from, modify, build, and use.</sub>
