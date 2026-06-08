@@ -77,34 +77,6 @@ All open-source software files and schematics are available right now. Antenna d
 
 <sub>Because CC BY-SA 4.0 does not license patent rights, Scale RF also provides a royalty-free defensive patent covenant so makers, researchers, hams, and commercial users can make, have made, use, modify, sell, offer for sale, import, and distribute hardware based on the released antenna design, subject to the covenant's defensive terms. The covenant also includes a design-limited reciprocal patent grant and defensive non-assert from recipients who claim, invoke, rely on, or receive the benefit of the Scale RF patent covenant. See [`PATENT_COVENANT.md`](PATENT_COVENANT.md).</sub>
 
-<sub>The antenna patent covenant applies only to the Released Antenna Design. It does not grant permission to manufacture, reproduce, clone, sell, or distribute the QuadRF RF Board, QuadRF RF Tile, RF transceiver core, RF-board layouts, Gerbers, BOMs, FPGA designs, internal calibration systems, or other protected Scale RF RF-core materials.</sub>
-
-<sub>For commercial manufacture, sale, distribution, crowdfunding, fulfillment, or other commercial hardware distribution based on the released antenna design, Scale RF requires explicit signed acceptance of the patent covenant and reciprocal patent grant. A short-form acceptance template is provided in [`PATENT_COVENANT_ACCEPTANCE_AGREEMENT.md`](PATENT_COVENANT_ACCEPTANCE_AGREEMENT.md). This acceptance requirement does not modify or restrict rights granted under CC BY-SA 4.0 for the released design files.</sub>
-
-#### What is released
-
-<sub>The exact files included in each release are identified in [`RELEASE_MANIFEST.md`](RELEASE_MANIFEST.md) and by the corresponding repository release tag or commit hash.</sub>
-
-<sub>Unless otherwise stated in the release manifest, the released antenna design files may include antenna PCB source files, CAD files, Gerbers, manufacturing drawings, mechanical drawings, simulation files, documentation, and related design outputs for the released antenna and mechanical structures.</sub>
-
-#### What is not released by this repository
-
-<sub>Unless expressly stated in the release manifest or in another written license from Scale RF, this repository does not license or release Scale RF's: the QuadRF RF Board, QuadRF RF Tile, RF transceiver core, or physical RF-core products; RF-board layouts, Gerbers, manufacturing outputs, bills of materials, stackups, pick-and-place files, or production-test materials; RF-core schematics, except for selected debugging/reference schematic files if expressly listed and marked with a file-level license; digital electronics designs; FPGA designs and bitstreams; calibration systems; enclosure designs; unreleased system designs or methods; trademarks, logos, product names, branding, or trade dress.</sub>
-
-<sub>Purchase of a Scale RF product is governed by the applicable product terms and does not grant permission to manufacture, copy, clone, or redistribute protected Scale RF RF-core products or unreleased designs.</sub>
-
-#### QuadRF RF Board / Tile schematic clarification
-
-<sub>The QuadRF RF Board / Tile and related RF-core technology are all rights reserved and patent pending. Scale RF may provide selected schematics, diagrams, pinouts, or debugging notes for troubleshooting and review. If those files are expressly marked CC BY-SA 4.0, that license applies only to copyright and similar rights in the schematic or documentation files themselves. It does not grant a patent license, manufacturing license, or other right to manufacture, have manufactured, reproduce as physical hardware, copy, clone, sell, offer for sale, import, or distribute QuadRF RF Boards, RF Tiles, replacement boards, compatible boards, or derivative RF-core products. See [`RF_BOARD_AND_TILE_NOTICE.md`](RF_BOARD_AND_TILE_NOTICE.md).</sub>
-
-#### Third-party attribution
-
-<sub>Some released antenna features are based in part on other open source projects. See [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) for upstream attribution, license information, and related notices.</sub>
-
-#### Trademarks
-
-<sub>No trademark license is granted by this repository. See [`TRADEMARKS.md`](TRADEMARKS.md) for permitted nominative references and restrictions on use of ScaleRF, QuadRF, MoonRF, and related marks.</sub>
-
 #### Safety, RF compliance, export, and lawful use
 
 <sub>The released files are not a certified radio product, approved transmitter, or authorization to transmit radio-frequency energy in any jurisdiction. High-power RF systems, amplifiers, phased arrays, and directional antennas can create RF-exposure, interference, thermal, electrical, and regulatory risks.</sub>
@@ -117,6 +89,34 @@ See:
 - [`EXPORT_AND_SANCTIONS_NOTICE.md`](EXPORT_AND_SANCTIONS_NOTICE.md)
 - [`NO_WARRANTY_AND_DISCLAIMER.md`](NO_WARRANTY_AND_DISCLAIMER.md)
 - [`RF_BOARD_AND_TILE_NOTICE.md`](RF_BOARD_AND_TILE_NOTICE.md)</sub>
+
+#### What is released
+
+<sub>The exact files included in each release are identified in [`RELEASE_MANIFEST.md`](RELEASE_MANIFEST.md) and by the corresponding repository release tag or commit hash.</sub>
+
+<sub>Unless otherwise stated in the release manifest, the released antenna design files may include antenna PCB source files, CAD files, Gerbers, manufacturing drawings, mechanical drawings, simulation files, documentation, and related design outputs for the released antenna and mechanical structures.</sub>
+
+#### What is not released by this repository
+
+<sub>Unless expressly stated in the release manifest or in another written license from Scale RF, this repository does not license or release Scale RF's: the QuadRF RF Board, QuadRF RF Tile, RF transceiver core, or physical RF-core products; RF-board layouts, Gerbers, manufacturing outputs, bills of materials, stackups, pick-and-place files, or production-test materials; RF-core schematics, except for selected debugging/reference schematic files if expressly listed and marked with a file-level license; digital electronics designs; FPGA designs and bitstreams; calibration systems; enclosure designs; unreleased system designs or methods; trademarks, logos, product names, branding, or trade dress.</sub>
+
+<sub>The antenna patent covenant applies only to the Released Antenna Design. It does not grant permission to manufacture, reproduce, clone, sell, or distribute the QuadRF RF Board, QuadRF RF Tile, RF transceiver core, RF-board layouts, Gerbers, BOMs, FPGA designs, internal calibration systems, or other protected Scale RF RF-core materials.</sub>
+
+<sub>For commercial manufacture, sale, distribution, crowdfunding, fulfillment, or other commercial hardware distribution based on the released antenna design, Scale RF requires explicit signed acceptance of the patent covenant and reciprocal patent grant. A short-form acceptance template is provided in [`PATENT_COVENANT_ACCEPTANCE_AGREEMENT.md`](PATENT_COVENANT_ACCEPTANCE_AGREEMENT.md). This acceptance requirement does not modify or restrict rights granted under CC BY-SA 4.0 for the released design files.</sub>
+
+<sub>Purchase of a Scale RF product is governed by the applicable product terms and does not grant permission to manufacture, copy, clone, or redistribute protected Scale RF RF-core products or unreleased designs.</sub> 
+
+#### QuadRF RF Board / Tile schematic clarification
+
+<sub>The QuadRF RF Board / Tile and related RF-core technology are all rights reserved and patent pending. Scale RF may provide selected schematics, diagrams, pinouts, or debugging notes for troubleshooting and review. If those files are expressly marked CC BY-SA 4.0, that license applies only to copyright and similar rights in the schematic or documentation files themselves. It does not grant a patent license, manufacturing license, or other right to manufacture, have manufactured, reproduce as physical hardware, copy, clone, sell, offer for sale, import, or distribute QuadRF RF Boards, RF Tiles, replacement boards, compatible boards, or derivative RF-core products. See [`RF_BOARD_AND_TILE_NOTICE.md`](RF_BOARD_AND_TILE_NOTICE.md).</sub>
+
+#### Third-party attribution
+
+<sub>Some released antenna features are based in part on other open source projects. See [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) for upstream attribution, license information, and related notices.</sub>
+
+#### Trademarks
+
+<sub>No trademark license is granted by this repository. See [`TRADEMARKS.md`](TRADEMARKS.md) for permitted nominative references and restrictions on use of ScaleRF, QuadRF, MoonRF, and related marks.</sub>
 
 #### Contributions
 
