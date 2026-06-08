@@ -1,6 +1,6 @@
 <img src="images/rf_quad_kit_logo.png" width="500px">
 
-**QuadRF** seeks to democratize modern phased array technology, bringing it down to Earth in an accessible, hacker-friendly, and programmable kit. At its core, QuadRF is a modular 4x4 MIMO software-defined radio tile with an open antenna architecture. Powered by an integrated Raspberry Pi 5, it functions out of the box as a real-time RF camera, expanding SDR exploration from the traditional time and frequency domains into the **spatial domain**.
+<img align="left" src="images/set-of-four_no_background.jpg" width="400px"> **QuadRF** seeks to democratize modern phased array technology, bringing it down to Earth in an accessible, hacker-friendly, and programmable kit. At its core, QuadRF is a modular 4x4 MIMO software-defined radio tile with an open antenna architecture. Powered by an integrated Raspberry Pi 5, it functions out of the box as a real-time RF camera, expanding SDR exploration from the traditional time and frequency domains into the **spatial domain**.
 
 While a single QuadRF is a complete, fully functional phased array development platform, it is also designed from the ground up as a building block for much larger arrays. Beamforming computation is distributed across each tile's Lattice ECP5 FPGA, meaning users can link boards together to scale into square-meter scale phased arrays, such as our open-source 240-antenna MoonRF design. To support builders looking to scale their arrays, we will also be offering individual RF tiles after the Crowd Supply campaign.
 
@@ -99,8 +99,6 @@ See:
 <sub>For commercial manufacture, sale, distribution, crowdfunding, fulfillment, or other commercial hardware distribution based on the released antenna design, Scale RF requires explicit signed acceptance of the patent covenant and reciprocal patent grant. A short-form acceptance template is provided in [`PATENT_COVENANT_ACCEPTANCE_AGREEMENT.md`](PATENT_COVENANT_ACCEPTANCE_AGREEMENT.md). This acceptance requirement does not modify or restrict rights granted under CC BY-SA 4.0 for the released design files.</sub>
 
 <sub>Purchase of a Scale RF product is governed by the applicable product terms and does not grant permission to manufacture, copy, clone, or redistribute protected Scale RF RF-core products or unreleased designs.</sub> 
-
-#### QuadRF RF Board / Tile schematic clarification
 
 <sub>The QuadRF RF Board / Tile and related RF-core technology are all rights reserved and patent pending. Scale RF may provide selected schematics, diagrams, pinouts, or debugging notes for troubleshooting and review. If those files are expressly marked CC BY-SA 4.0, that license applies only to copyright and similar rights in the schematic or documentation files themselves. It does not grant a patent license, manufacturing license, or other right to manufacture, have manufactured, reproduce as physical hardware, copy, clone, sell, offer for sale, import, or distribute QuadRF RF Boards, RF Tiles, replacement boards, compatible boards, or derivative RF-core products. See [`RF_BOARD_AND_TILE_NOTICE.md`](RF_BOARD_AND_TILE_NOTICE.md).</sub>
 
