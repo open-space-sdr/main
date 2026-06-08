@@ -18,7 +18,7 @@ To take this into the field, the included tripod converts into a mobile carry ha
 As a complete, full-duplex (Tx+Rx) SDR featuring dual-polarization (RHCP and LHCP) antennas, it expands the capabilities of software-defined radio. Its four coherent transceivers unlock true 4x4 MIMO, and can automatically beamform and maximize signal-to-noise ratios (SNR) over extreme distances—perfect for locating, tracking, and streaming HD video from moving quadcopters or balloons. Experiment with point-to-point links, point-to-multipoint architectures, and spatial mesh-network prototyping. Out of the box, it integrates directly into your existing workflow, ready to run popular frameworks like GNU Radio, SoapySDR, or your own custom RF code.
 
 ## Features & Specifications
-<img align="left" src="images/full_kit.png" width="500px">
+<img align="left" src="images/full_kit.png" width="400px">
 
 **RF & Wireless Capabilities**
 * 4 RX / 4 TX full-duplex coherent channels.
