@@ -28,6 +28,7 @@ As a complete, full-duplex (Tx+Rx) SDR featuring dual-polarization (RHCP and LHC
 * 40 MHz of bandwidth per antenna.
 * 1 Watt Tx power per antenna utilizing four SiGe power amplifiers.
 * Four swappable circular patch antenna modules; receive polarization is switch-selectable RHCP or LHCP, one path at a time; transmit is RHCP.
+<br/>
 
 **Compute & Processing**
 * Integrated Raspberry Pi 5 for onboard computation and control.
@@ -40,10 +41,10 @@ As a complete, full-duplex (Tx+Rx) SDR featuring dual-polarization (RHCP and LHC
 * Custom circular USB-C power splitter with integrated ESD protection.
 * **Optional Mobile Pack:** A separate add-on featuring a back-mountable battery bank for 21700 Lithium batteries, providing 5-6 hours of mobile use (Rx only) or 3-4 hours under 100% Tx load.
   
-<img align="left" src="images/set-of-four_no_bg.jpg" width="300px">
+<img align="left" src="images/set-of-four_no_bg.jpg" width="290px">
 
 **Physical Properties**
-* Custom 3D-printed magnetic enclosure utilizing transparent 8001 resin.
+* Custom 3D-printed magnetic enclosure.
 * Includes convertible desktop/mobile-carry tripod with an aligned smartphone holder for AR applications.
 * **Dimensions:** 15 x 11 x 4 cm (5.9 x 4.3 x 1.6 inches)
 * **Weight:**
