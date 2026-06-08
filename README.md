@@ -69,7 +69,7 @@ All open-source software files and schematics are available right now. Antenna d
 
 This repository contains released MoonRF and related Scale RF antenna and mechanical design files. Scale RF's goal is to make the released antenna ecosystem useful to makers, researchers, hams, educators, and commercial users while preserving a reciprocal defensive patent framework and protecting the QuadRF RF Board / Tile and other RF-core designs.
 
-## Community use
+### Community use
 
 We want QuadRF and MoonRF to be something the community can actually learn from, modify, build, and use.
 
@@ -81,13 +81,13 @@ The antenna patent covenant applies only to the Released Antenna Design. It does
 
 For commercial manufacture, sale, distribution, crowdfunding, fulfillment, or other commercial hardware distribution based on the released antenna design, Scale RF requires explicit signed acceptance of the patent covenant and reciprocal patent grant. A short-form acceptance template is provided in [`PATENT_COVENANT_ACCEPTANCE_AGREEMENT.md`](PATENT_COVENANT_ACCEPTANCE_AGREEMENT.md). This acceptance requirement does not modify or restrict rights granted under CC BY-SA 4.0 for the released design files.
 
-## What is released
+### What is released
 
 The exact files included in each release are identified in [`RELEASE_MANIFEST.md`](RELEASE_MANIFEST.md) and by the corresponding repository release tag or commit hash.
 
 Unless otherwise stated in the release manifest, the released antenna design files may include antenna PCB source files, CAD files, Gerbers, manufacturing drawings, mechanical drawings, simulation files, documentation, and related design outputs for the released antenna and mechanical structures.
 
-## What is not released by this repository
+### What is not released by this repository
 
 Unless expressly stated in the release manifest or in another written license from Scale RF, this repository does not license or release Scale RF's:
 
@@ -106,19 +106,19 @@ Unless expressly stated in the release manifest or in another written license fr
 
 Purchase of a Scale RF product is governed by the applicable product terms and does not grant permission to manufacture, copy, clone, or redistribute protected Scale RF RF-core products or unreleased designs.
 
-## QuadRF RF Board / Tile schematic clarification
+### QuadRF RF Board / Tile schematic clarification
 
 The QuadRF RF Board / Tile and related RF-core technology are all rights reserved and patent pending. Scale RF may provide selected schematics, diagrams, pinouts, or debugging notes for troubleshooting and review. If those files are expressly marked CC BY-SA 4.0, that license applies only to copyright and similar rights in the schematic or documentation files themselves. It does not grant a patent license, manufacturing license, or other right to manufacture, have manufactured, reproduce as physical hardware, copy, clone, sell, offer for sale, import, or distribute QuadRF RF Boards, RF Tiles, replacement boards, compatible boards, or derivative RF-core products. See [`RF_BOARD_AND_TILE_NOTICE.md`](RF_BOARD_AND_TILE_NOTICE.md).
 
-## Third-party attribution
+### Third-party attribution
 
 Some released antenna features are based in part on other open source projects. See [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) for upstream attribution, license information, and related notices.
 
-## Trademarks
+### Trademarks
 
 No trademark license is granted by this repository. See [`TRADEMARKS.md`](TRADEMARKS.md) for permitted nominative references and restrictions on use of ScaleRF, QuadRF, MoonRF, and related marks.
 
-## Safety, RF compliance, export, and lawful use
+### Safety, RF compliance, export, and lawful use
 
 The released files are not a certified radio product, approved transmitter, or authorization to transmit radio-frequency energy in any jurisdiction. High-power RF systems, amplifiers, phased arrays, and directional antennas can create RF-exposure, interference, thermal, electrical, and regulatory risks.
 
@@ -131,11 +131,11 @@ See:
 - [`NO_WARRANTY_AND_DISCLAIMER.md`](NO_WARRANTY_AND_DISCLAIMER.md)
 - [`RF_BOARD_AND_TILE_NOTICE.md`](RF_BOARD_AND_TILE_NOTICE.md)
 
-## Contributions
+### Contributions
 
 Scale RF may accept issue reports, documentation improvements, and other contributions, but substantial antenna-design, RF, calibration, mechanical, manufacturing, or software contributions may require a separate contributor agreement. See [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
-## Contact
+### Contact
 
 For patent licensing, patent-covenant acceptance, commercial collaboration, trademark permission, safety/regulatory questions, or questions about this release, contact:
 
