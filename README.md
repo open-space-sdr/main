@@ -56,7 +56,7 @@ As a complete, full-duplex (Tx+Rx) SDR featuring dual-polarization (RHCP and LHC
 QuadRF uses a hybrid open model. We have open-sourced the elements where users are most likely to modify, extend, and build, while protecting the RF-core implementation that makes a low-cost 4x4 MIMO SDR tile possible.
 
 * **Software, Drivers, and Applications:** The entire QuadRF software stack is 100% open-source under GPLv2/GPLv3. This includes Linux drivers, SoapySDR support, control APIs, calibration utilities, web interfaces, and example applications.
-* **Antenna and Array Ecosystem:** The antenna and mechanical ecosystem is fully open-source under CC BY-SA 4.0. We publish the 4-element, 72-element, and 240-element FR4 antenna PCB CAD/Gerbers, OpenEMS simulation files, and MoonRF array structure CAD.
+* **Antenna and Array Ecosystem:** The antenna and mechanical ecosystem is released under CC BY-SA 4.0. We publish the 4-element, 72-element, and 240-element FR4 antenna PCB CAD/Gerbers, OpenEMS simulation files, and MoonRF array structure CAD. Because CC BY-SA 4.0 does not license patent rights, Scale RF also provides a royalty-free defensive patent covenant. See `Legal' section below.
 * **FPGA Customization:** The onboard Lattice ECP5 FPGA is unlocked and user-programmable. It can be programmed directly from the Raspberry Pi 5 using OpenOCD or through standard JTAG tools.
 * **Protected RF Core:** The production RF-core and official factory DSP bitstreams are proprietary. However, we provide source-available RF schematics for debugging, education, and academic research.
 
