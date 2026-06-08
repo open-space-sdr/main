@@ -1,8 +1,10 @@
 <img src="images/rf_quad_kit_logo.png" width="400px">
 
-<img align="left" src="images/set-of-four_no_bg.jpg" width="300px"> **QuadRF** seeks to democratize modern phased array technology, bringing it down to Earth in an accessible, hacker-friendly, and programmable kit. At its core, QuadRF is a modular 4x4 MIMO software-defined radio tile with an open antenna architecture. Powered by an integrated Raspberry Pi 5, it functions out of the box as a real-time RF camera, expanding SDR exploration from the traditional time and frequency domains into the **spatial domain**.
+<img align="left" src="images/quadrf-on-tripod-open-and-closed.jpg" width="300px"> 
 
-While a single QuadRF is a complete, fully functional phased array development platform, it is also designed from the ground up as a building block for much larger arrays. Beamforming computation is distributed across each tile's Lattice ECP5 FPGA, meaning users can link boards together to scale into square-meter scale phased arrays, such as our open-source 240-antenna MoonRF design. To support builders looking to scale their arrays, we will also be offering individual RF tiles after the Crowd Supply campaign.
+**QuadRF** seeks to democratize modern phased array technology, bringing it down to Earth in an accessible, hacker-friendly, and programmable kit. At its core, QuadRF is a modular 4x4 MIMO software-defined radio tile with an open antenna architecture. Powered by an integrated Raspberry Pi 5, it functions out of the box as a real-time RF camera, expanding SDR exploration from the traditional time and frequency domains into the **spatial domain**.
+
+<img align="right" src="images/moonrf_assembling.png" width="300px">  While a single QuadRF is a complete, fully functional phased array development platform, it is also designed from the ground up as a building block for much larger arrays. Beamforming computation is distributed across each tile's Lattice ECP5 FPGA, meaning users can link boards together to scale into square-meter scale phased arrays, such as our open-source 240-antenna MoonRF design. To support builders looking to scale their arrays, we will also be offering individual RF tiles after the Crowd Supply campaign.
 
 ## Applications
 <img align="right" src="images/quadrf-RF-augemented-reality.jpg" width="500px">
@@ -35,6 +37,8 @@ As a complete, full-duplex (Tx+Rx) SDR featuring dual-polarization (RHCP and LHC
 * USB 3.0, Gigabit Ethernet, Wi-Fi, and Direct HDMI/USB support.
 * Custom circular USB-C power splitter with integrated ESD protection.
 * **Optional Mobile Pack:** A separate add-on featuring a back-mountable battery bank for 21700 Lithium batteries, providing 5-6 hours of mobile use (Rx only) or 3-4 hours under 100% Tx load.
+  
+<img align="left" src="images/set-of-four_no_bg.jpg" width="300px">
 
 **Physical Properties**
 * Custom 3D-printed magnetic enclosure utilizing transparent 8001 resin.
