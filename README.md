@@ -1,6 +1,6 @@
 <img src="images/rf_quad_kit_logo.png" width="400px">
 
-<img align="left" src="images/quadrf-on-tripod-open-and-closed.jpg" width="300px"> 
+<img align="right" src="images/quadrf-on-tripod-open-and-closed.jpg" width="300px"> 
 
 **QuadRF** is democratizing phased array technology, bringing it down to Earth in an accessible, hacker-friendly, and programmable kit. At its core, QuadRF is a modular 4x4 MIMO software-defined radio tile with an open antenna architecture. Powered by an integrated Raspberry Pi 5, it functions out of the box as a real-time RF camera, expanding SDR exploration from the traditional time and frequency domains into the **spatial domain**.
 
@@ -13,7 +13,7 @@ More information on our website: https://MoonRF.com/
 
 QuadRF lets you directly explore the RF environment around you.  See where signals are, the way they propagate, and how antennas and the surrounding environment interact. At 30 fps, you can map WiFi devices in a room, quadcopters in the sky, or other wireless transmitters. Expanding beyond vision and LiDAR, your robots can use QuadRF to gain real-time spatial awareness of surrounding radio beacons and access points.
 
-QuadRF is also a powerful diagnostic tool for engineers and hardware developers to debug their own RF products. You can use it to see exactly where a device is radiating or how signals change with an enclosure. Because QuadRF is full-duplex, it doesn’t just listen—it can also transmit probe signals to measure a spatial response. This allows users to characterize shadowing, absorption, reflections, material polarization effects, and general RF channels throughout the environment. For educators, QuadRF is a practical, hands-on teaching tool for university students learning about MIMO, phased arrays, and spatial wireless measurements.
+QuadRF is also a powerful diagnostic tool for engineers and hardware developers to debug their own RF products. You can use it to see where a device is radiating or how signals change with an enclosure. Because QuadRF is full-duplex, it doesn’t just listen—it can also transmit probe signals to measure a spatial response. This allows users to characterize shadowing, absorption, reflections, material effects, and general RF channels throughout the environment. For educators, QuadRF is a practical, hands-on teaching tool for university students learning about MIMO, phased arrays, and spatial wireless measurements.
 
 To take it outdoors, the included tripod converts into a mobile carry handle. It features an integrated smartphone holder that perfectly aligns your phone's camera with the QuadRF array, allowing you to easily utilize augmented reality (AR) visualization on the go.
 
