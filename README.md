@@ -27,7 +27,7 @@ As a complete, full-duplex (Tx+Rx) SDR featuring dual-polarization (RHCP and LHC
 * Operating frequency range of 4.9 - 6.0 GHz (C-Band).
 * 40 MHz of bandwidth per antenna.
 * 1 Watt Tx power per antenna utilizing four SiGe power amplifiers.
-* Four swappable dual-polarization (RHCP and LHCP) antennas.
+* Four swappable circular patch antenna modules; receive polarization is switch-selectable RHCP or LHCP, one path at a time; transmit is RHCP.
 
 **Compute & Processing**
 * Integrated Raspberry Pi 5 for onboard computation and control.
