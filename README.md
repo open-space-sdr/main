@@ -38,7 +38,6 @@ As a complete, full-duplex (Tx+Rx) SDR featuring dual-polarization (RHCP and LHC
 
 **Connectivity, Power & Interfaces**
 * USB 3.0, Gigabit Ethernet, Wi-Fi, and Direct HDMI/USB support.
-* Custom circular USB-C power splitter with integrated ESD protection.
 * **Optional Mobile Pack:** A separate add-on featuring a back-mountable battery bank for 21700 Lithium batteries, providing 5-6 hours of mobile use (Rx only) or 3-4 hours under 100% Tx load.
   
 <img align="left" src="images/set-of-four_no_bg.jpg" width="290px">
