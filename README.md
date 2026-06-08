@@ -69,9 +69,7 @@ All open-source software files and schematics are available right now. Antenna d
 
 #### Community use
 
-<sub>We want QuadRF and MoonRF to be something the community can actually learn from, modify, build, and use.</sub>
-
-<sub>The released MoonRF antenna and mechanical design files are available under Creative Commons Attribution-ShareAlike 4.0 International (`CC BY-SA 4.0`), which lets you copy, share, and adapt those files for any purpose, including commercial use, subject to attribution and ShareAlike.</sub>
+<sub>We want QuadRF and MoonRF to be something the community can actually learn from, modify, build, and use. The released MoonRF antenna and mechanical design files are available under Creative Commons Attribution-ShareAlike 4.0 International (`CC BY-SA 4.0`), which lets you copy, share, and adapt those files for any purpose, including commercial use, subject to attribution and ShareAlike.</sub>
 
 <sub>Because CC BY-SA 4.0 does not license patent rights, Scale RF also provides a royalty-free defensive patent covenant so makers, researchers, hams, and commercial users can make, have made, use, modify, sell, offer for sale, import, and distribute hardware based on the released antenna design, subject to the covenant's defensive terms. The covenant also includes a design-limited reciprocal patent grant and defensive non-assert from recipients who claim, invoke, rely on, or receive the benefit of the Scale RF patent covenant. See [`PATENT_COVENANT.md`](PATENT_COVENANT.md).</sub>
 
