@@ -95,11 +95,8 @@ Unless expressly stated in the release manifest or in another written license fr
 - RF-board layouts, Gerbers, manufacturing outputs, bills of materials, stackups, pick-and-place files, or production-test materials;
 - RF-core schematics, except for selected debugging/reference schematic files if expressly listed and marked with a file-level license;
 - digital electronics designs;
-- FPGA designs;
+- FPGA designs and bitstreams;
 - calibration systems;
-- phased-array control systems;
-- test systems;
-- manufacturing processes;
 - enclosure designs;
 - unreleased system designs or methods;
 - trademarks, logos, product names, branding, or trade dress.
