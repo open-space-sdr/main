@@ -1,6 +1,6 @@
 # Export Control, Sanctions, and End-Use Notice
 
-MoonRF and related Scale RF antenna designs are intended for lawful learning, experimentation, amateur radio, research, communications, sensing, and RF-engineering use.
+QuadRF, MoonRF and related Scale RF antenna designs are intended for lawful learning, experimentation, amateur radio, research, communications, sensing, and RF-engineering use.
 
 Users are responsible for complying with all applicable export-control, sanctions, customs, import, radio-frequency, telecommunications, aviation, defense-trade, and end-use/end-user rules in their jurisdiction.
 
@@ -30,7 +30,7 @@ Examples of uses requiring special caution, separate legal review, or express au
 - unlawful surveillance, unauthorized interception, or privacy-invasive monitoring;
 - transactions involving sanctioned parties, embargoed destinations, denied parties, restricted end users, or restricted end uses.
 
-Do not treat the term “radar” as categorically prohibited. Some educational, hobby, civil, automotive, marine, meteorological, industrial, or research radar activities may be lawful under applicable rules. The concern is controlled, restricted, prohibited, or unauthorized radar, tracking, targeting, military, intelligence, weapons, or export-controlled applications.
+Radar is not always categorically prohibited. Some educational, hobby, civil, automotive, marine, meteorological, industrial, or research radar activities may be lawful under applicable rules. The concern is controlled, restricted, prohibited, or unauthorized radar, tracking, targeting, military, intelligence, weapons, or export-controlled applications.
 
 ## Technical assistance and support
 
