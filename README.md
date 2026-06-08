@@ -2,9 +2,9 @@
 
 <img align="left" src="images/quadrf-on-tripod-open-and-closed.jpg" width="300px"> 
 
-**QuadRF** seeks to democratize modern phased array technology, bringing it down to Earth in an accessible, hacker-friendly, and programmable kit. At its core, QuadRF is a modular 4x4 MIMO software-defined radio tile with an open antenna architecture. Powered by an integrated Raspberry Pi 5, it functions out of the box as a real-time RF camera, expanding SDR exploration from the traditional time and frequency domains into the **spatial domain**.
+**QuadRF** is democratizing phased array technology, bringing it down to Earth in an accessible, hacker-friendly, and programmable kit. At its core, QuadRF is a modular 4x4 MIMO software-defined radio tile with an open antenna architecture. Powered by an integrated Raspberry Pi 5, it functions out of the box as a real-time RF camera, expanding SDR exploration from the traditional time and frequency domains into the **spatial domain**.
 
-<img align="right" src="images/moonrf_assembling.png" width="300px">  While a single QuadRF is a complete, fully functional phased array development platform, it is also designed from the ground up as a building block for much larger arrays. Beamforming computation is distributed across each tile's Lattice ECP5 FPGA, meaning users can link boards together to scale into square-meter scale phased arrays, such as our open-source 240-antenna MoonRF design. To support builders looking to scale their arrays, we will also be offering individual RF tiles after the Crowd Supply campaign.
+<img align="right" src="images/moonrf_assembling.png" width="300px">  While a single QuadRF is a complete, fully functional phased array development platform, it is also designed from the ground up as a building block for larger arrays. Beamforming computation is distributed across each tile's Lattice ECP5 FPGA, meaning users can link boards together to scale into square-meter scale phased arrays, such as our open-source 240-antenna MoonRF design. To support builders looking to scale their arrays, we will also be offering individual RF tiles after the Crowd Supply campaign.
 
 More information on our website: https://MoonRF.com/
 
@@ -49,7 +49,7 @@ As a complete, full-duplex (Tx+Rx) SDR featuring dual-polarization (RHCP and LHC
 * **Weight:**
   * QuadRF Tile + antenna: 35 g (1.2 oz)
   * QuadRF Kit with enclosure: 190 g (6.7 oz)
-  * Complete kit (with all accessories, tripod, power supply): 670 g (1.48 lbs)
+  * Complete kit (with all accessories, tripod, power supply): 670 g (1.5 lbs)
 
 **Software & Ecosystem**
 * Out-of-the-box Web RF GUI, Web Remote Desktop, and Direct Pi 5 Linux access.
