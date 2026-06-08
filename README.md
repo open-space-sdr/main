@@ -6,6 +6,8 @@
 
 <img align="right" src="images/moonrf_assembling.png" width="300px">  While a single QuadRF is a complete, fully functional phased array development platform, it is also designed from the ground up as a building block for much larger arrays. Beamforming computation is distributed across each tile's Lattice ECP5 FPGA, meaning users can link boards together to scale into square-meter scale phased arrays, such as our open-source 240-antenna MoonRF design. To support builders looking to scale their arrays, we will also be offering individual RF tiles after the Crowd Supply campaign.
 
+More information on our website: https://MoonRF.com/
+
 ## Applications
 <img align="right" src="images/quadrf-RF-augemented-reality.jpg" width="500px">
 
