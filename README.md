@@ -8,6 +8,7 @@ While a single QuadRF is a complete, fully functional phased array development p
 
 ## Applications
 <img align="right" src="images/quadrf-RF-augemented-reality.jpg" width="600px">
+
 QuadRF lets you directly explore the RF environment around you.  See where signals are, the way they propagate, and how antennas and the surrounding environment interact. At 30 fps, you can instantly map WiFi devices in a room, track quadcopters in the sky, or see wireless transmitters through walls. Expanding beyond vision and LiDAR, your robots or drones can use QuadRF to gain real-time spatial awareness of surrounding radio beacons and access points for localization.
 
 QuadRF is also a powerful diagnostic tool for engineers and hardware developers to debug their own RF products. You can use it to see exactly where a device is radiating or how signals change with an enclosure. Because QuadRF is full-duplex, it doesn’t just listen—it can also transmit probe signals to measure a spatial response. This allows users to characterize shadowing, absorption, reflections, material polarization effects, and general RF channels throughout the environment. For educators, QuadRF is a practical, hands-on teaching tool for university students learning about MIMO, phased arrays, and spatial wireless measurements.
@@ -18,6 +19,7 @@ As a complete, full-duplex (Tx+Rx) SDR featuring dual-polarization (RHCP and LHC
 
 ## Features & Specifications
 <img align="left" src="images/full_kit.png" width="500px">
+
 **RF & Wireless Capabilities**
 * 4 RX / 4 TX full-duplex coherent channels.
 * Operating frequency range of 4.9 - 6.0 GHz (C-Band).
