@@ -7,7 +7,7 @@ QuadRF democratizes modern phased array technology, bringing it down to Earth in
 While a single QuadRF is a complete, fully functional phased array development platform, it is also designed from the ground up as a building block for much larger arrays. Beamforming computation is distributed across each tile's Lattice ECP5 FPGA, meaning users can link boards together to scale into square-meter scale phased arrays, such as our open-source 240-antenna MoonRF design. To support builders looking to scale their arrays, we will also be offering individual RF tiles after the campaign.
 
 ## Applications
-<img align="right" src="images/quadrf-RF-augemented-reality.jpg" width="600px">
+<img align="right" src="images/quadrf-RF-augemented-reality.jpg" width="500px">
 
 QuadRF lets you directly explore the RF environment around you.  See where signals are, the way they propagate, and how antennas and the surrounding environment interact. At 30 fps, you can instantly map WiFi devices in a room, track quadcopters in the sky, or see wireless transmitters through walls. Expanding beyond vision and LiDAR, your robots or drones can use QuadRF to gain real-time spatial awareness of surrounding radio beacons and access points for localization.
 
