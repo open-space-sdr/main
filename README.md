@@ -1,5 +1,6 @@
-# QuadRF
-The 4x4 MIMO SDR tile for spatial RF vision and beamforming that scales as a phased array
+<img src="images/rf_quad_kit_logo.png" width="500px">
+
+**QuadRF** is a 4x4 MIMO SDR tile for spatial RF vision and beamforming that scales as a phased array
 
 QuadRF democratizes modern phased array technology, bringing it down to Earth in an accessible, hacker-friendly, and programmable kit. At its core, QuadRF is a modular 4x4 MIMO software-defined radio tile with an open antenna architecture. Powered by an integrated Raspberry Pi 5, it functions out of the box as a real-time RF camera, expanding SDR exploration from the traditional time and frequency domains into the **spatial domain**.
 
