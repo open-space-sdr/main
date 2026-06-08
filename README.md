@@ -53,7 +53,7 @@ As a complete, full-duplex (Tx+Rx) SDR featuring dual-polarization (RHCP and LHC
 * Out-of-the-box Web RF GUI, Web Remote Desktop, and Direct Pi 5 Linux access.
 * Compatible with GNU Radio, SoapySDR, and ZeroMQ.
 
-## Open Source
+## Open Source Software and Antennas
 
 QuadRF uses a hybrid open model. We have open-sourced the elements where users are most likely to modify, extend, and build, while protecting the RF-core implementation that makes a low-cost 4x4 MIMO SDR tile possible.
 
