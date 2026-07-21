@@ -1,5 +1,4 @@
 // gcc -O2 -Wall -Wextra -o jtag jtag.c max285x.c -lm
-//
 // Copyright 2025 - Martin McCormick, released under the GPLv2
 
 #define _GNU_SOURCE
@@ -13,8 +12,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <time.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
+
 
 typedef uint8_t  __u8;
 typedef uint16_t __u16;
@@ -66,6 +67,13 @@ static void usage(const char *argv0)
         "  -h, --help             Show this help\n"
         "\n",
         argv0, argv0, argv0, argv0, argv0, argv0, argv0, argv0, argv0);
+}
+
+static inline uint64_t now_ns(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (uint64_t)ts.tv_sec * 1000000000ULL + (uint64_t)ts.tv_nsec;
 }
 
 static unsigned long parse_ul(const char *s, unsigned long max, const char *what)
@@ -160,9 +168,11 @@ struct txrx_spec {
     bool interleave_specified;
     bool interleave_on;  /* rx only: 4-channel interleaved mode */
 
-    /* New Phase and Tone fields */
     bool autosteer_specified; 
     bool autosteer_on;
+
+    bool tx_follow_rx_specified;
+    bool tx_follow_rx_on;
     
     bool tone_en_specified;   
     bool tone_en;
@@ -289,6 +299,9 @@ static void parse_txrx_spec(const char *arg, bool is_tx, struct txrx_spec *out)
         } else if (strcmp(key, "autosteer") == 0) {
             out->autosteer_specified = true;
             out->autosteer_on = (parse_ul(val, 1, "autosteer") != 0);
+        } else if (strcmp(key, "tx_follow_rx") == 0) {
+            out->tx_follow_rx_specified = true;
+            out->tx_follow_rx_on = (parse_ul(val, 1, "tx_follow_rx") != 0);
         } else if (strcmp(key, "tone_en") == 0) {
             out->tone_en_specified = true;
             out->tone_en = (parse_ul(val, 1, "tone_en") != 0);
@@ -312,6 +325,71 @@ static void parse_txrx_spec(const char *arg, bool is_tx, struct txrx_spec *out)
 
     free(tmp);
 }
+
+static int calibrate_dsi_link(int fd)
+{
+    printf("Calibrating DSI link timing...\n");
+    uint16_t errors[9];
+    uint16_t val1, val2;
+
+    // First reset the phase register for consistency
+    if (jtag_write_u16(fd, 0x33, 0x04) != 0) return -1;
+    usleep(100);
+    if (jtag_write_u16(fd, 0x33, 0x00) != 0) return -1;
+    
+    /* Sweep from tap 0 to 8 */
+    for (int i = 0; i <= 8; i++) {
+        /* Read CRC error count, wait ~50ms, read again */
+        if (jtag_read_u16(fd, 0x35, &val1) != 0) return -1;
+        usleep(50000); 
+        if (jtag_read_u16(fd, 0x35, &val2) != 0) return -1;
+        
+        errors[i] = val2 - val1; /* Unsigned math handles 16-bit rollover safely */
+        printf("  Tap %d: %u errors\n", i, errors[i]);
+        
+        /* Increment delay hardware tap if not at the end */
+        if (i < 8) {
+            if (jtag_write_u16(fd, 0x33, 0x03) != 0) return -1;
+            if (jtag_write_u16(fd, 0x33, 0x02) != 0) return -1;
+        }
+    }
+    
+    /* Analyze results to find the widest safe window */
+    int max_len = 0, current_len = 0;
+    int best_start = 0, current_start = 0;
+    
+    for (int i = 0; i <= 8; i++) {
+        if (errors[i] == 0) {
+            if (current_len == 0) current_start = i;
+            current_len++;
+            if (current_len > max_len) {
+                max_len = current_len;
+                best_start = current_start;
+            }
+        } else {
+            current_len = 0;
+        }
+    }
+    
+    int best_tap;
+    if (max_len == 0) {
+        fprintf(stderr, "Warning: No error-free DSI taps found! Defaulting to tap 4.\n");
+        best_tap = 4;
+    } else {
+        /* Find the center of the safe window */
+        best_tap = best_start + (max_len / 2);
+        printf("Selected safest tap: %d (center of %d error-free taps)\n", best_tap, max_len);
+    }
+    
+    /* The hardware is currently left at tap 8. Step backwards to the selected best tap. */
+    for (int i = 8; i > best_tap; i--) {
+        if (jtag_write_u16(fd, 0x33, 0x01) != 0) return -1;
+        if (jtag_write_u16(fd, 0x33, 0x00) != 0) return -1;
+    }
+    
+    return 0;
+}
+
 
 int main(int argc, char **argv)
 {
@@ -464,8 +542,33 @@ int main(int argc, char **argv)
         }
     }
 
+    /* --- Acquire Exclusive Lease --- */
+    uint64_t start_ns = now_ns();
+    
+    while (ioctl(fd, CSI_IOC_JTAG_ACQUIRE_LEASE) != 0) {
+        if (errno == ENOTTY) {
+            // Kernel driver is older and doesn't support leases. Safe to ignore.
+            break;
+        } else if (errno == EBUSY) {
+            if (now_ns() - start_ns > 100000000ULL) { // 100ms timeout
+                fprintf(stderr, "Error: JTAG hardware is locked by another process (100ms timeout).\n");
+                rc = 1;
+                goto out;
+            }
+            usleep(1000); // Sleep 1ms and try again
+        } else {
+            fprintf(stderr, "Warning: Failed to acquire JTAG lease: %s\n", strerror(errno));
+            break;
+        }
+    }
     /* init paths */
     if (do_init_both) {
+
+        if (calibrate_dsi_link(fd) != 0) { 
+            fprintf(stderr, "Error: calibrate_dsi_link failed: %s\n", strerror(errno)); 
+            rc = 1; goto out_release; 
+        }
+
         if (max2850_init(fd) != 0) { fprintf(stderr, "Error: max2850_init failed: %s\n", strerror(errno)); rc = 1; goto out_release; }
         if (max2851_init(fd) != 0) { fprintf(stderr, "Error: max2851_init failed: %s\n", strerror(errno)); rc = 1; goto out_release; }
     }
@@ -514,7 +617,12 @@ int main(int argc, char **argv)
             double fs = (k_reg > 0) ? (352.0 / k_reg) : 88.0;
             double n_f = txs.tone_freq_mhz * 65536.0 / fs;
             jtag_write_u16(fd, 0x2F, (uint16_t)(int16_t)round(n_f));
-        }        /* Tx Phases (0x2C, 0x2D) */
+        }        
+        if (txs.tx_follow_rx_specified) {
+            jtag_write_u16(fd, 0x6D, txs.tx_follow_rx_on ? 0x01 : 0x00);
+        }
+
+	/* Tx Phases (0x2C, 0x2D) */
         if (txs.phase_specified[0] || txs.phase_specified[1]) {
             uint16_t val_2c = 0;
             jtag_read_u16(fd, 0x2C, &val_2c);
@@ -691,6 +799,10 @@ int main(int argc, char **argv)
                 rc = 1;
                 goto out_release;
             }
+	    uint16_t tx_follow_rx_val = 0;
+            if (jtag_read_u16(fd, 0x6D, &tx_follow_rx_val) == 0) {
+                printf("- Tx follow Rx: %s\n", (tx_follow_rx_val & 0x01) ? "ON" : "OFF");
+            }
         }
     }
 
@@ -714,6 +826,9 @@ int main(int argc, char **argv)
     }
 
 out_release:
+
+    ioctl(fd, CSI_IOC_JTAG_RELEASE_LEASE);
+
     if (do_setup && do_release) {
         if (ioctl(fd, CSI_IOC_JTAG_RELEASE) != 0) {
             fprintf(stderr, "Warning: CSI_IOC_JTAG_RELEASE failed: %s\n", strerror(errno));

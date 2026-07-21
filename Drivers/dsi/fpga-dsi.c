@@ -27,6 +27,8 @@
 #include <linux/vmalloc.h>
 #include <linux/smp.h>
 #include <linux/kref.h>
+#include <linux/math64.h>
+#include <linux/io.h>
 
 #include <drm/drm_device.h>
 #include <drm/drm_modes.h>
@@ -81,10 +83,14 @@ static ssize_t frames_in_show(struct device *d, struct device_attribute *a, char
 static ssize_t frames_flipped_show(struct device *d, struct device_attribute *a, char *buf);
 static ssize_t queued_show(struct device *d, struct device_attribute *a, char *buf);
 static ssize_t ring_show(struct device *d, struct device_attribute *a, char *buf);
+static ssize_t dsi_clock_hz_show(struct device *d, struct device_attribute *a, char *buf);
+static ssize_t pixel_clock_khz_show(struct device *d, struct device_attribute *a, char *buf);
 static DEVICE_ATTR_RO(frames_in);
 static DEVICE_ATTR_RO(frames_flipped);
 static DEVICE_ATTR_RO(queued);
 static DEVICE_ATTR_RO(ring);
+static DEVICE_ATTR_RO(dsi_clock_hz);
+static DEVICE_ATTR_RO(pixel_clock_khz);
 
 struct dsi_stream_dev {
 	struct kref refcount;
@@ -102,6 +108,11 @@ struct dsi_stream_dev {
 	u32 lanes;
 	bool continuous_clk;
 	u32 fb_bpp;              /* 3 for RGB888 */
+	u32 target_dsi_clock_hz; /* D-PHY clock lane frequency; 0 = derive from fps */
+	bool start_on_load;      /* start DRM client/DSI stream as soon as the panel binds */
+	bool zero_idle_on_start; /* present all-zero payload before userspace queues data */
+	u32 mode_clock_khz;      /* pixel clock requested from DRM */
+	u64 dsi_clock_hz;        /* estimated D-PHY clock lane frequency */
 	u32 width;               /* ceil(bytes_per_line/3) */
 	size_t frame_bytes;      /* bytes_per_line * height */
 
@@ -163,6 +174,71 @@ static inline struct dsi_stream_dev *to_dsi_stream(struct drm_panel *p)
 	return container_of(p, struct dsi_stream_dev, panel);
 }
 
+static inline u32 dsi_stream_bpp_bits(const struct dsi_stream_dev *s)
+{
+	return s->fb_bpp * 8;
+}
+
+static inline u32 dsi_stream_htotal(const struct dsi_stream_dev *s)
+{
+	return s->width + 8 + 2 + 4;
+}
+
+static inline u32 dsi_stream_vtotal(const struct dsi_stream_dev *s)
+{
+	return s->height + 1 + 1 + 1;
+}
+
+static u32 dsi_stream_calc_mode_clock_khz(const struct dsi_stream_dev *s)
+{
+	u32 htotal = dsi_stream_htotal(s);
+	u32 vtotal = dsi_stream_vtotal(s);
+
+	if (s->target_dsi_clock_hz && s->lanes && s->fb_bpp) {
+		u64 pclk_hz = (u64)s->target_dsi_clock_hz * 2ULL * s->lanes;
+
+		/* DSI video payload: pixel_clock * bpp = dphy_clock * 2 * lanes. */
+		pclk_hz = div_u64(pclk_hz + dsi_stream_bpp_bits(s) / 2,
+					  dsi_stream_bpp_bits(s));
+		return DIV_ROUND_CLOSEST_ULL(pclk_hz, 1000ULL);
+	}
+
+	return DIV_ROUND_CLOSEST_ULL((u64)htotal * vtotal * s->fps, 1000ULL);
+}
+
+static u64 dsi_stream_calc_dsi_clock_hz(const struct dsi_stream_dev *s,
+						u32 mode_clock_khz)
+{
+	if (!s->lanes)
+		return 0;
+
+	/* D-PHY clock lane frequency; lane bit rate is 2x this value. */
+	return div_u64((u64)mode_clock_khz * 1000ULL * dsi_stream_bpp_bits(s),
+			     2ULL * s->lanes);
+}
+
+static void dsi_stream_update_clock_info(struct dsi_stream_dev *s)
+{
+	s->mode_clock_khz = dsi_stream_calc_mode_clock_khz(s);
+	s->dsi_clock_hz = dsi_stream_calc_dsi_clock_hz(s, s->mode_clock_khz);
+}
+
+static void dsi_stream_zero_framebuffers(struct dsi_stream_dev *s)
+{
+	int i;
+
+	for (i = 0; i < DSI_STREAM_NUM_BUFS; i++) {
+		if (!s->vaddr[i])
+			continue;
+
+		if (s->map[i].is_iomem)
+			memset_io(s->map[i].vaddr_iomem, 0,
+				  (size_t)s->pitch[i] * s->height);
+		else
+			memset(s->map[i].vaddr, 0, (size_t)s->pitch[i] * s->height);
+	}
+}
+
 /* ------------------- Copy helper: staging[idx] -> FB[idx] (no reordering) ------------------- */
 static inline void dsi_stream_blit_to_fb(struct dsi_stream_dev *s, int idx)
 {
@@ -187,6 +263,9 @@ static int dsi_stream_alloc_staging(struct dsi_stream_dev *s)
 	s->staging_base  = vmalloc_user(s->staging_total);
 	if (!s->staging_base)
 		return -ENOMEM;
+
+	/* The idle payload is zero I/Q/RGB until userspace writes real samples. */
+	memset(s->staging_base, 0, s->staging_total);
 
 	for (i = 0; i < DSI_STREAM_NUM_BUFS; i++)
 		s->staging[i] = (void *)((char *)s->staging_base + (size_t)i * s->frame_bytes);
@@ -299,6 +378,13 @@ static int dsi_stream_client_register(struct dsi_stream_dev *s)
 			goto err_release;
 		s->vaddr[i] = s->map[i].vaddr;
 		s->pitch[i] = s->cbuf[i]->pitch;
+	}
+
+	if (s->zero_idle_on_start) {
+		dsi_stream_zero_framebuffers(s);
+		ret = dsi_stream_client_present(s, 0);
+		if (ret)
+			dev_warn(s->dev, "initial zero-frame present failed: %d\n", ret);
 	}
 
 	/* staging already allocated at probe */
@@ -541,13 +627,14 @@ static int dsi_stream_panel_get_modes(struct drm_panel *panel, struct drm_connec
 	m->hdisplay    = s->width;
 	m->hsync_start = m->hdisplay + 8;
 	m->hsync_end   = m->hsync_start + 2;
-	m->htotal      = m->hsync_end   + 4;
+	m->htotal      = dsi_stream_htotal(s);
 	m->vdisplay    = s->height;
 	m->vsync_start = m->vdisplay + 1;
 	m->vsync_end   = m->vsync_start + 1;
-	m->vtotal      = m->vsync_end   + 1;
+	m->vtotal      = dsi_stream_vtotal(s);
 
-	m->clock = DIV_ROUND_CLOSEST((int)(m->htotal * m->vtotal * s->fps), 1000);
+	dsi_stream_update_clock_info(s);
+	m->clock = s->mode_clock_khz;
 	m->type = DRM_MODE_TYPE_DRIVER | DRM_MODE_TYPE_PREFERRED;
 	strscpy(m->name, "DSI-STREAM", sizeof(m->name));
 	drm_mode_set_name(m);
@@ -619,15 +706,34 @@ static int dsi_stream_parse_dt(struct dsi_stream_dev *s)
 	s->lanes = 2;
 	s->continuous_clk = true;
 	s->fb_bpp = 3;
+	s->target_dsi_clock_hz = 0;
+	s->start_on_load = true;
+	s->zero_idle_on_start = true;
 
 	of_property_read_u32(np, "acme,bytes-per-line", &s->bytes_per_line);
 	of_property_read_u32(np, "acme,height", &s->height);
 	of_property_read_u32(np, "acme,fps", &s->fps);
 	of_property_read_u32(np, "acme,lanes", &s->lanes);
-	s->continuous_clk = of_property_read_bool(np, "acme,continuous-clock");
+	of_property_read_u32(np, "acme,dsi-clock-hz", &s->target_dsi_clock_hz);
+	if (of_property_read_bool(np, "acme,continuous-clock"))
+		s->continuous_clk = true;
+	if (of_property_read_bool(np, "acme,non-continuous-clock"))
+		s->continuous_clk = false;
+	if (of_property_read_bool(np, "acme,start-on-load"))
+		s->start_on_load = true;
+	if (of_property_read_bool(np, "acme,no-start-on-load"))
+		s->start_on_load = false;
+	if (of_property_read_bool(np, "acme,zero-idle-on-start"))
+		s->zero_idle_on_start = true;
+	if (of_property_read_bool(np, "acme,no-zero-idle"))
+		s->zero_idle_on_start = false;
+
+	if (!s->lanes || !s->fb_bpp || !s->height || !s->bytes_per_line)
+		return -EINVAL;
 
 	s->width = DIV_ROUND_UP(s->bytes_per_line, 3);
 	s->frame_bytes = (size_t)s->bytes_per_line * s->height;
+	dsi_stream_update_clock_info(s);
 	return 0;
 }
 
@@ -645,6 +751,7 @@ static int dsi_stream_probe(struct mipi_dsi_device *dsi)
 	kref_init(&s->refcount);
 
 	s->dev = dev;
+	s->dsi = dsi;
 	INIT_WORK(&s->start_work, dsi_stream_start_work);
 	atomic_set(&s->open_count, 0);
 	init_waitqueue_head(&s->wq_started);
@@ -670,6 +777,9 @@ static int dsi_stream_probe(struct mipi_dsi_device *dsi)
 		dsi->mode_flags |= MIPI_DSI_CLOCK_NON_CONTINUOUS;
 	dsi->format = MIPI_DSI_FMT_RGB888;
 	dsi->lanes  = s->lanes;
+
+	if (s->start_on_load)
+		s->want_start = true;
 
 	drm_panel_init(&s->panel, dev, &dsi_stream_panel_funcs, DRM_MODE_CONNECTOR_DSI);
 	drm_panel_add(&s->panel);
@@ -698,9 +808,16 @@ static int dsi_stream_probe(struct mipi_dsi_device *dsi)
 	device_create_file(s->miscdev.this_device, &dev_attr_frames_flipped);
 	device_create_file(s->miscdev.this_device, &dev_attr_queued);
 	device_create_file(s->miscdev.this_device, &dev_attr_ring);
+	device_create_file(s->miscdev.this_device, &dev_attr_dsi_clock_hz);
+	device_create_file(s->miscdev.this_device, &dev_attr_pixel_clock_khz);
 
-	dev_info(dev, "dsi-stream ready (raw bytes): %u B/line, %u lines, %u fps, %u lanes\n",
-	         s->bytes_per_line, s->height, s->fps, s->lanes);
+	if (s->want_start)
+		schedule_work(&s->start_work);
+
+	dev_info(dev, "dsi-stream ready (raw bytes): %u B/line, %u lines, %u fps, %u lanes, pixel clock %u kHz, DSI clock %llu Hz, start_on_load=%d, zero_idle=%d\n",
+	         s->bytes_per_line, s->height, s->fps, s->lanes,
+	         s->mode_clock_khz, s->dsi_clock_hz,
+	         s->start_on_load, s->zero_idle_on_start);
 	return 0;
 
 err_put:
@@ -714,6 +831,8 @@ static void dsi_stream_remove(struct mipi_dsi_device *dsi)
 	if (!s) return;
 	cancel_work_sync(&s->start_work);
 	if (s->misc_registered) {
+		device_remove_file(s->miscdev.this_device, &dev_attr_pixel_clock_khz);
+		device_remove_file(s->miscdev.this_device, &dev_attr_dsi_clock_hz);
 		device_remove_file(s->miscdev.this_device, &dev_attr_ring);
 		device_remove_file(s->miscdev.this_device, &dev_attr_queued);
 		device_remove_file(s->miscdev.this_device, &dev_attr_frames_flipped);
@@ -746,7 +865,8 @@ static void dsi_stream_start_work(struct work_struct *work)
 	}
 	s->running = true;
 
-	dev_info(s->dev, "client started; flip thread running\n");
+	dev_info(s->dev, "client started; zero idle frame active; DSI clock %llu Hz (lane bit rate %llu Hz)\n",
+		 s->dsi_clock_hz, s->dsi_clock_hz * 2ULL);
 }
 
 /* Sysfs */
@@ -770,6 +890,18 @@ static ssize_t ring_show(struct device *d, struct device_attribute *a, char *buf
 	struct dsi_stream_dev *s = dev_get_drvdata(d);
 	return sysfs_emit(buf, "%d %d\n", s->head, s->tail);
 }
+static ssize_t dsi_clock_hz_show(struct device *d, struct device_attribute *a, char *buf)
+{
+	struct dsi_stream_dev *s = dev_get_drvdata(d);
+	dsi_stream_update_clock_info(s);
+	return sysfs_emit(buf, "%llu\n", s->dsi_clock_hz);
+}
+static ssize_t pixel_clock_khz_show(struct device *d, struct device_attribute *a, char *buf)
+{
+	struct dsi_stream_dev *s = dev_get_drvdata(d);
+	dsi_stream_update_clock_info(s);
+	return sysfs_emit(buf, "%u\n", s->mode_clock_khz);
+}
 
 static const struct of_device_id dsi_stream_of_match[] = {
 	{ .compatible = "acme,dsi-stream-panel" },
@@ -788,6 +920,6 @@ static struct mipi_dsi_driver dsi_stream_driver = {
 
 module_mipi_dsi_driver(dsi_stream_driver);
 
-MODULE_DESCRIPTION("DSI byte-stream panel (/dev/dsi_stream0): staging-mmap, RGB888, no reorder");
+MODULE_DESCRIPTION("DSI byte-stream panel (/dev/dsi_stream0): staging-mmap, RGB888, zero-idle autostart");
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("Martin McCormick - martin@moonrf.com");
+MODULE_AUTHOR("open.space");

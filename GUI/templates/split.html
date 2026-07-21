@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>QuadRF Desktop + Control GUI</title>
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100dvh;
+      width: 100vw;
+      overflow: hidden;
+      font-family: sans-serif;
+      background-color: #000000;
+    }
+
+    .split-container {
+      display: flex;
+      height: 100%;
+      width: 100%;
+    }
+
+    .left-pane {
+      width: 75%; /* Default starting split */
+    }
+
+    .right-pane {
+      flex: 1;
+    }
+
+/* Update the pane to act as a strict bounding box */
+.pane {
+  position: relative;
+  overflow: hidden; 
+  min-width: 0; 
+  min-height: 0;
+}
+
+/* Force the iframe to obey the bounding box exactly */
+.pane iframe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+}
+    /* The draggable partition */
+    .resizer {
+      width: 8px;
+      background-color: #cbd5e1;
+      cursor: col-resize; /* Shows the left/right drag arrow */
+      z-index: 10;
+      transition: background-color 0.2s;
+      position: relative;
+    }
+
+    .resizer:hover, .resizer.active {
+      background-color: #94a3b8;
+    }
+
+    /* Expand invisible touch area by 10px on each side for mobile ease-of-use */
+    .resizer::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: -10px; 
+      right: -10px;
+      z-index: 11;
+      cursor: col-resize;
+    }
+	
+    /* Close Button Styles */
+    .close-btn {
+      position: absolute;
+      top: 10px;
+      right: 15px;
+      width: 32px;
+      height: 32px;
+      background-color: rgba(0, 0, 0, 0.4);
+      color: white;
+      border: none;
+      border-radius: 50%;
+      font-size: 20px;
+      cursor: pointer;
+      z-index: 20; /* Ensures it sits above the iframe */
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background-color 0.2s;
+      line-height: 1;
+    }
+
+    .close-btn:hover {
+      background-color: rgba(0, 0, 0, 0.8);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="split-container">
+    <div class="pane left-pane" id="leftPane">
+<!-- The left iframe with KasmVNC permissions enabled -->
+<iframe src="/" id="leftIframe" allow="clipboard-read; clipboard-write; fullscreen"></iframe>
+    </div>
+    <div class="resizer" id="resizer"></div>
+    <div class="pane right-pane" id="rightPane">
+	 <button class="close-btn" id="closeBtn" aria-label="Close pane">&times;</button>
+      <iframe src="/GUI" id="rightIframe"></iframe>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const resizer = document.getElementById('resizer');
+      const leftPane = document.getElementById('leftPane');
+      const iframes = document.querySelectorAll('iframe');
+	  const closeBtn = document.getElementById('closeBtn');
+
+// Force KasmVNC overrides the moment the iframe finishes loading
+leftIframe.addEventListener('load', () => {
+        try {
+          const doc = leftIframe.contentDocument;
+          const win = leftIframe.contentWindow;
+
+          // 1. Force the KasmVNC menu to reappear
+          const style = doc.createElement('style');
+          style.innerHTML = `
+            #noVNC_control_bar_anchor, 
+            #noVNC_control_bar { display: block !important; }
+          `;
+          doc.head.appendChild(style);
+
+          // 2. Inject ALL the correct scaling keys into KasmVNC's storage
+          win.localStorage.setItem('resize', 'remote');
+          win.localStorage.setItem('kasmvnc-resize', 'remote');
+          win.localStorage.setItem('novnc-resize', 'remote');
+
+          // 3. Force KasmVNC to notice the storage change live
+          win.dispatchEvent(new Event('storage'));
+          
+          // Try the native UI update function just in case
+          if (win.UI && typeof win.UI.updateSetting === 'function') {
+              win.UI.updateSetting('resize', 'remote');
+          }
+
+          // 4. Poke the iframe to instantly recalculate its new dimensions
+          setTimeout(() => {
+              win.dispatchEvent(new Event('resize'));
+          }, 500);
+          
+        } catch(e) {
+          console.warn("Could not inject KasmVNC overrides.", e);
+        }
+      });      
+      let isResizing = false;
+	  
+      closeBtn.addEventListener('click', () => {
+        // Redirect the entire parent window to your desired URL
+        window.location.href = '/';
+      });
+
+      // 1. Unified function for starting the drag
+      function startResize(e) {
+        isResizing = true;
+        resizer.classList.add('active');
+
+        // Disable pointer events on iframes during drag
+        iframes.forEach(iframe => iframe.style.pointerEvents = 'none');
+        
+        // Attach move and stop listeners for both mouse and touch
+        // { passive: false } is required so we can call preventDefault() later
+        document.addEventListener('mousemove', handleMove);
+        document.addEventListener('touchmove', handleMove, { passive: false });
+        
+        document.addEventListener('mouseup', stopResize);
+        document.addEventListener('touchend', stopResize);
+        document.addEventListener('touchcancel', stopResize);
+      }
+
+      // 2. Unified function for handling movement
+      function handleMove(e) {
+        if (!isResizing) return;
+        
+        // Prevent default scrolling and pull-to-refresh on mobile while dragging
+        if (e.type === 'touchmove') {
+          e.preventDefault(); 
+        }
+        
+        // Get the X coordinate depending on whether it's a mouse or touch event
+        const clientX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
+        
+        const containerWidth = document.body.clientWidth;
+        const newLeftWidth = (clientX / containerWidth) * 100;
+        
+        // Limit the split to between 10% and 90% bounds
+        if (newLeftWidth > 10 && newLeftWidth < 90) {
+          leftPane.style.width = `${newLeftWidth}%`;
+        }
+      }
+
+      function stopResize() {
+        if (!isResizing) return;
+        isResizing = false;
+        resizer.classList.remove('active');
+
+        // Re-enable pointer events
+        iframes.forEach(iframe => iframe.style.pointerEvents = 'auto');
+        
+        // NEW: Tell the iframes their container size has officially changed
+        iframes.forEach(iframe => {
+          try {
+            iframe.contentWindow.dispatchEvent(new Event('resize'));
+          } catch(e) {}
+        });
+        
+        // Cleanup all event listeners
+        document.removeEventListener('mousemove', handleMove);
+        document.removeEventListener('touchmove', handleMove);
+        document.removeEventListener('mouseup', stopResize);
+        document.removeEventListener('touchend', stopResize);
+        document.removeEventListener('touchcancel', stopResize);
+      }
+
+      resizer.addEventListener('mousedown', startResize);
+      resizer.addEventListener('touchstart', startResize, { passive: false });
+      
+    });
+  </script></body>
+</html>

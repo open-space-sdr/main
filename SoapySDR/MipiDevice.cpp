@@ -14,6 +14,8 @@
 #include <limits>
 #include <atomic>
 #include <complex>
+#include <stdexcept>
+#include <type_traits>
 
 #ifndef DSI_IOC_GET_FB_INFO
 #define DSI_IOC_GET_FB_INFO _IOR('D', 0x10, struct dsi_fb_info)
@@ -22,21 +24,44 @@
 static constexpr const char *kDefaultRxPath = "/dev/csi_stream0";
 static constexpr const char *kDefaultTxPath = "/dev/dsi_stream0";
 
+static_assert(sizeof(csi_ring_info) == 16, "csi_ring_info ABI mismatch with fpga-csi driver");
+static_assert(sizeof(csi_geometry) == 8, "csi_geometry ABI mismatch with fpga-csi driver");
+
 MipiDevice::MipiDevice(const SoapySDR::Kwargs &args)
 {
     rxPath_ = args.count("rx_dev") ? args.at("rx_dev") : kDefaultRxPath;
     txPath_ = args.count("tx_dev") ? args.at("tx_dev") : kDefaultTxPath;
 
+    // only used for buffer chunk sizing, not rates
     rxBytesPerLine_ = args.count("bytes_per_line") ? uint32_t(std::stoul(args.at("bytes_per_line"))) : 1024;
     rxLines_        = args.count("lines") ? uint32_t(std::stoul(args.at("lines"))) : 1024;
-    rxFps_ = round(2.0 * 640.0e6 / (rxBytesPerLine_ * rxLines_ * 8.0));
+    //rxFps_ = round(2.0 * 640.0e6 / (rxBytesPerLine_ * rxLines_ * 8.0));
 
     // TX timing parameters are still used for *rate math*; framebuffer geometry is owned by driver/DTS.
     txBytesPerLine_ = args.count("tx_bytes_per_line") ? uint32_t(std::stoul(args.at("tx_bytes_per_line"))) : 3072;
     txLines_        = args.count("tx_lines") ? uint32_t(std::stoul(args.at("tx_lines"))) : 1080;
     txFps_          = args.count("tx_fps") ? uint32_t(std::stoul(args.at("tx_fps"))) : 26;
 
-    txLineRate_     = double(txFps_) * double(txBytesPerLine_) * double(txLines_) / 2.0;
+    txOverheadBytesPerLine_ = args.count("tx_overhead_bytes_per_line")
+        ? uint32_t(std::stoul(args.at("tx_overhead_bytes_per_line"))) : 42; // 4 header + 2 CRC + 36 porch bytes
+    txFrameExtraBytes_ = args.count("tx_frame_extra_bytes")
+        ? uint32_t(std::stoul(args.at("tx_frame_extra_bytes"))) : 9342;
+
+    const double txPayloadBytes = double(txBytesPerLine_) * double(txLines_);
+    const double txTotalBytes   = txPayloadBytes
+                                + double(txOverheadBytesPerLine_) * double(txLines_)
+                                + double(txFrameExtraBytes_);
+    txPayloadFraction_ = (txTotalBytes > 0.0) ? (txPayloadBytes / txTotalBytes) : 1.0;
+
+    // Preferred interpretation: derive the native payload IQ rate from the DSI
+    // byte stream, then apply payload/total.  If the caller explicitly supplies
+    // tx_dsi_byte_rate, use it.  Otherwise use the measured/nominal 87.5 MHz
+    // byte stream.  If you want legacy behavior, pass tx_dsi_byte_rate equal to
+    // tx_fps * txTotalBytes.
+    txDsiByteRate_ = args.count("tx_dsi_byte_rate")
+        ? std::stod(args.at("tx_dsi_byte_rate")) : TX_DSI_BYTE_RATE_DEFAULT;
+
+    txLineRate_     = 0.5 * txDsiByteRate_ * txPayloadFraction_;
     lastTxRate_     = 0.0;
     txSampleRateRatio_ = 1.0;
     txResampler_.setEnabled(false);
@@ -53,15 +78,27 @@ MipiDevice::MipiDevice(const SoapySDR::Kwargs &args)
 
 MipiDevice::~MipiDevice()
 {
+    std::lock_guard<std::recursive_mutex> dlock(deviceMutex_);
+    std::lock_guard<std::recursive_mutex> rlock(rxMutex_);
+    std::lock_guard<std::recursive_mutex> tlock(txMutex_);
+
     if (rxRing_ && rxMapLen_) ::munmap(rxRing_, rxMapLen_);
+    rxRing_ = nullptr;
+    rxMapLen_ = 0;
+
     if (txStaging_ && txMapLen_) ::munmap(txStaging_, txMapLen_);
+    txStaging_ = nullptr;
+    txMapLen_ = 0;
 
     if (fdRx_ >= 0) ::close(fdRx_);
     if (fdTx_ >= 0) ::close(fdTx_);
+    fdRx_ = -1;
+    fdTx_ = -1;
 }
 
 void MipiDevice::initRx()
 {
+    std::lock_guard<std::recursive_mutex> lock(deviceMutex_);
     if (fdRx_ >= 0) return; // Already initialized
 
     fdRx_ = xopen(rxPath_.c_str(), O_RDONLY | O_NONBLOCK);
@@ -89,6 +126,7 @@ void MipiDevice::initRx()
 
 void MipiDevice::initTx()
 {
+    std::lock_guard<std::recursive_mutex> lock(deviceMutex_);
     if (fdTx_ >= 0) return; // Already initialized
 
     fdTx_ = xopen(txPath_.c_str(), O_RDWR | O_NONBLOCK);
@@ -149,16 +187,13 @@ std::string MipiDevice::getNativeStreamFormat(const int dir, const size_t, doubl
 double MipiDevice::getSampleRate(const int dir, const size_t) const
 {
     if (dir == SOAPY_SDR_TX) {
-        const double line = (txFps_ && txBytesPerLine_ && txLines_)
-            ? (double(txFps_) * double(txBytesPerLine_) * double(txLines_) / 2.0)
-            : 0.0;
         if (lastTxRate_ > 0.0) return lastTxRate_;
-        return line;
+        return txLineRate_;
     }
 
     if (dir == SOAPY_SDR_RX) {
         if (lastRxRate_ > 0.0) return lastRxRate_;
-        if (rxFps_) return RX_LINE_RATE;
+        return RX_LINE_RATE;
     }
     return 0.0;
 }
@@ -190,78 +225,140 @@ std::string MipiDevice::readSetting(const std::string &key) const
 SoapySDR::Stream *MipiDevice::setupStream(const int dir, const std::string &format, const std::vector<size_t> &channels, const SoapySDR::Kwargs &args)
 {
     (void)args;
-    if (dir == SOAPY_SDR_RX) {
-        initRx(); // Initialize RX lazily
 
-        rxRequestedFormat_ = format.empty() ? std::string(SOAPY_SDR_CS8) : format;
-        if (rxRequestedFormat_ == "fc32") rxRequestedFormat_ = SOAPY_SDR_CF32;
+    std::lock_guard<std::recursive_mutex> dlock(deviceMutex_);
 
-        if (rxRequestedFormat_ != SOAPY_SDR_CS8 && rxRequestedFormat_ != SOAPY_SDR_CF32) {
-            throw std::runtime_error("Unsupported RX format: " + rxRequestedFormat_);
-        }
-        
-        rxChannels_ = channels;
+    auto normalizedFormat = format.empty() ? std::string(SOAPY_SDR_CS8) : format;
+    if (normalizedFormat == "fc32") normalizedFormat = SOAPY_SDR_CF32;
 
-        if (rxChannels_.empty() || rxChannels_.size() == 1) {
-            rxFilter_config_(lastRxRate_);
-        }
-
-        return reinterpret_cast<SoapySDR::Stream*>(this);
+    if (normalizedFormat != SOAPY_SDR_CS8 && normalizedFormat != SOAPY_SDR_CF32) {
+        throw std::runtime_error("Unsupported stream format: " + normalizedFormat);
     }
-    else
-    {
-        initTx(); // Initialize TX lazily
 
-        txRequestedFormat_ = format.empty() ? std::string(SOAPY_SDR_CS8) : format;
-        if (txRequestedFormat_ == "fc32") txRequestedFormat_ = SOAPY_SDR_CF32;
+    std::unique_ptr<MipiStream> holder(new MipiStream);
+    auto *s = holder.get();
+    s->dir = dir;
+    s->format = normalizedFormat;
+    s->channels = channels;
+    s->active = false;
+    s->id = nextStreamId_++;
 
-        if (txRequestedFormat_ != SOAPY_SDR_CS8 && txRequestedFormat_ != SOAPY_SDR_CF32) {
-            throw std::runtime_error("Unsupported TX format: " + txRequestedFormat_);
+    try {
+        if (dir == SOAPY_SDR_RX) {
+            std::lock_guard<std::recursive_mutex> rlock(rxMutex_);
+            if (rxStreamOpen_) {
+                throw std::runtime_error("RX stream is already open; close the existing RX stream before setupStream(RX)");
+            }
+
+            initRx();
+            rxRequestedFormat_ = normalizedFormat;
+            rxChannels_ = channels;
+
+            if (rxChannels_.empty() || rxChannels_.size() == 1) {
+                rxFilter_config_(lastRxRate_);
+            }
+
+            rxStreamOpen_ = true;
+            SoapySDR::logf(SOAPY_SDR_INFO,
+                           "MipiDevice::setupStream RX stream=%llu format=%s channels=%zu",
+                           (unsigned long long)s->id, s->format.c_str(), s->channels.size());
+            return reinterpret_cast<SoapySDR::Stream*>(holder.release());
         }
 
-        txResampler_config_((lastTxRate_ > 0.0) ? lastTxRate_ : txLineRate_);
+        if (dir == SOAPY_SDR_TX) {
+            std::lock_guard<std::recursive_mutex> tlock(txMutex_);
+            if (txStreamOpen_) {
+                throw std::runtime_error("TX stream is already open; close the existing TX stream before setupStream(TX)");
+            }
 
-        return reinterpret_cast<SoapySDR::Stream*>(this);
+            initTx();
+            txRequestedFormat_ = normalizedFormat;
+            txResampler_config_((lastTxRate_ > 0.0) ? lastTxRate_ : txLineRate_);
+
+            txStreamOpen_ = true;
+            SoapySDR::logf(SOAPY_SDR_INFO,
+                           "MipiDevice::setupStream TX stream=%llu format=%s channels=%zu",
+                           (unsigned long long)s->id, s->format.c_str(), s->channels.size());
+            return reinterpret_cast<SoapySDR::Stream*>(holder.release());
+        }
+
+        throw std::runtime_error("Unsupported stream direction");
+    } catch (...) {
+        throw;
     }
 }
 
 void MipiDevice::closeStream(SoapySDR::Stream *stream)
 {
-    if (stream == reinterpret_cast<SoapySDR::Stream*>(this)) {
+    auto *s = reinterpret_cast<MipiStream*>(stream);
+    if (!s) return;
+
+    if (s->dir == SOAPY_SDR_RX) {
+        std::lock_guard<std::recursive_mutex> lock(rxMutex_);
+        if (s->active) s->active = false;
         rxChannels_.clear();
         resampler_.reset();
-
-        // RX state cleanup
         rxFloatBuf_.reset();
-
-        // TX state cleanup
+        rxStreamOpen_ = false;
+        SoapySDR::logf(SOAPY_SDR_INFO,
+                       "MipiDevice::closeStream RX stream=%llu",
+                       (unsigned long long)s->id);
+    } else if (s->dir == SOAPY_SDR_TX) {
+        std::lock_guard<std::recursive_mutex> lock(txMutex_);
+        if (s->active) {
+            txRingFlush_(100000);
+            s->active = false;
+        }
         txResampler_.reset();
         txFloatBuf_.reset();
         txOutBytes_.clear();
         txOutOff_ = 0;
+        txRing_.reset();
+        txHeadIndex_ = 0;
+        txHeadOff_ = 0;
+        txStreamOpen_ = false;
+        SoapySDR::logf(SOAPY_SDR_INFO,
+                       "MipiDevice::closeStream TX stream=%llu",
+                       (unsigned long long)s->id);
     }
+
+    delete s;
 }
 
 int MipiDevice::activateStream(SoapySDR::Stream *stream, const int, const long long, const size_t)
 {
-    (void)stream;
+    auto *s = reinterpret_cast<MipiStream*>(stream);
+    if (!s) return SOAPY_SDR_STREAM_ERROR;
 
-    // RX state
-    rxFloatBuf_.reset();
+    if (s->dir == SOAPY_SDR_RX) {
+        std::lock_guard<std::recursive_mutex> lock(rxMutex_);
+        if (s->active) return 0;
+        rxFloatBuf_.reset();
+        s->active = true;
+        SoapySDR::logf(SOAPY_SDR_INFO,
+                       "MipiDevice::activateStream RX stream=%llu fdRx_=%d rxRing_=%p rxRingSize_=%zu sampleRateRatio_=%.9f",
+                       (unsigned long long)s->id, fdRx_, rxRing_, rxRingSize_, sampleRateRatio_);
+        return 0;
+    }
+
+    if (s->dir != SOAPY_SDR_TX) return SOAPY_SDR_STREAM_ERROR;
+
+    std::lock_guard<std::recursive_mutex> lock(txMutex_);
+    if (s->active) return 0;
 
     SoapySDR::logf(
         SOAPY_SDR_INFO,
-        "MipiDevice::activateStream fdTx_=%d txStaging_=%p txFbBytes_=%zu txFbCount_=%u txSampleRateRatio_=%.9f",
-        fdTx_, txStaging_, txFbBytes_, txFbCount_, txSampleRateRatio_);
+        "MipiDevice::activateStream TX stream=%llu fdTx_=%d txStaging_=%p txFbBytes_=%zu txFbCount_=%u txSampleRateRatio_=%.9f",
+        (unsigned long long)s->id, fdTx_, txStaging_, txFbBytes_, txFbCount_, txSampleRateRatio_);
 
-    if (fdTx_ >= 0 && !txRequestedFormat_.empty())
+    if (fdTx_ >= 0)
     {
         txRingInit_();
         txRing_.reset();
         txHeadIndex_ = 0;
         txHeadOff_   = 0;
 
-        for (int tries = 0; tries < 20; ++tries)  
+        for (int tries = 0; tries < 20; ++tries)
         {
             int rc = xpoll(fdTx_, POLLOUT, 10);
             if (rc > 0) break;
@@ -271,12 +368,12 @@ int MipiDevice::activateStream(SoapySDR::Stream *stream, const int, const long l
         if (txStaging_ && txFbBytes_)
         {
             const unsigned warmFrames = 2;
-            const long warmTimeoutUs  = 200000; 
-            const int perFrameRetries = 4;     
+            const long warmTimeoutUs  = 200000;
+            const int perFrameRetries = 4;
 
             SoapySDR::logf(SOAPY_SDR_INFO,
-                           "MipiDevice::activateStream: starting TX warm-up (%u frames, %zu bytes/frame)",
-                           warmFrames, txFbBytes_);
+                           "MipiDevice::activateStream TX stream=%llu: starting TX warm-up (%u frames, %zu bytes/frame)",
+                           (unsigned long long)s->id, warmFrames, txFbBytes_);
 
             std::vector<uint8_t> zeroFrame(txFbBytes_, 0);
 
@@ -286,43 +383,87 @@ int MipiDevice::activateStream(SoapySDR::Stream *stream, const int, const long l
                 for (int r = 0; r < perFrameRetries; ++r)
                 {
                     w = tx_write_staging(zeroFrame.data(), txFbBytes_, warmTimeoutUs);
-                    if (w == (ssize_t)txFbBytes_) break;          
-                    if (w == -EAGAIN) { ::usleep(10000); continue; } 
-                    break; 
+                    if (w == (ssize_t)txFbBytes_) break;
+                    if (w == -EAGAIN) { ::usleep(10000); continue; }
+                    break;
                 }
 
                 if (w < 0)
                 {
                     SoapySDR::logf(SOAPY_SDR_WARNING,
-                                   "MipiDevice::activateStream: warm-up frame %u failed: %zd (errno=%d %s)",
-                                   i, w, errno, std::strerror(errno));
+                                   "MipiDevice::activateStream TX stream=%llu: warm-up frame %u failed: %zd (errno=%d %s)",
+                                   (unsigned long long)s->id, i, w, errno, std::strerror(errno));
                     break;
                 }
                 if (size_t(w) < txFbBytes_)
                 {
                     SoapySDR::logf(SOAPY_SDR_WARNING,
-                                   "MipiDevice::activateStream: warm-up frame %u short write: %zd of %zu",
-                                   i, w, txFbBytes_);
+                                   "MipiDevice::activateStream TX stream=%llu: warm-up frame %u short write: %zd of %zu",
+                                   (unsigned long long)s->id, i, w, txFbBytes_);
                     break;
                 }
             }
 
-            SoapySDR::log(SOAPY_SDR_INFO, "MipiDevice::activateStream: TX warm-up sequence complete");
+            SoapySDR::logf(SOAPY_SDR_INFO,
+                           "MipiDevice::activateStream TX stream=%llu: TX warm-up sequence complete",
+                           (unsigned long long)s->id);
         }
     }
 
+    s->active = true;
     return 0;
 }
 
-int MipiDevice::deactivateStream(SoapySDR::Stream *, const int, const long long)
+int MipiDevice::deactivateStream(SoapySDR::Stream *stream, const int, const long long)
 {
-    txRingFlush_(100000); 
-    return 0;
+    auto *s = reinterpret_cast<MipiStream*>(stream);
+    if (!s) return SOAPY_SDR_STREAM_ERROR;
+
+    if (s->dir == SOAPY_SDR_RX) {
+        std::lock_guard<std::recursive_mutex> lock(rxMutex_);
+        s->active = false;
+        SoapySDR::logf(SOAPY_SDR_INFO,
+                       "MipiDevice::deactivateStream RX stream=%llu",
+                       (unsigned long long)s->id);
+        return 0;
+    }
+
+    if (s->dir == SOAPY_SDR_TX) {
+        std::lock_guard<std::recursive_mutex> lock(txMutex_);
+        txRingFlush_(100000);
+        s->active = false;
+        SoapySDR::logf(SOAPY_SDR_INFO,
+                       "MipiDevice::deactivateStream TX stream=%llu",
+                       (unsigned long long)s->id);
+        return 0;
+    }
+
+    return SOAPY_SDR_STREAM_ERROR;
 }
 
-std::vector<std::string> MipiDevice::listAntennas(const int, const size_t) const { return {"RX"}; }
-void MipiDevice::setAntenna(const int, const size_t, const std::string &name) { antennaSel_ = name; }
-std::string MipiDevice::getAntenna(const int, const size_t) const { return antennaSel_; }
+std::vector<std::string> MipiDevice::listAntennas(const int dir, const size_t) const
+{
+    if (dir == SOAPY_SDR_TX) return {"TX"};
+    return {"RX"};
+}
+
+void MipiDevice::setAntenna(const int dir, const size_t, const std::string &name)
+{
+    if (dir == SOAPY_SDR_TX) {
+        if (name != "TX") throw std::runtime_error("Unsupported TX antenna: " + name);
+        txAntennaSel_ = name;
+        return;
+    }
+    if (name != "RX") throw std::runtime_error("Unsupported RX antenna: " + name);
+    rxAntennaSel_ = name;
+}
+
+std::string MipiDevice::getAntenna(const int dir, const size_t) const
+{
+    if (dir == SOAPY_SDR_TX) return txAntennaSel_;
+    return rxAntennaSel_;
+}
+
 std::vector<std::string> MipiDevice::listGains(const int, const size_t) const { return {"RF"}; }
 SoapySDR::Range MipiDevice::getGainRange(const int, const size_t, const std::string &) const { return SoapySDR::Range(+1.0, +63.0); }
 void MipiDevice::setGain(const int, const size_t, const std::string &, const double value) { gain_ = value; }
@@ -337,14 +478,15 @@ SoapySDR::RangeList MipiDevice::getFrequencyRange(const int, const size_t, const
 
 std::vector<double> MipiDevice::listSampleRates(const int dir, const size_t) const
 {
-    if (dir == SOAPY_SDR_RX) return { 30.72e6, 40e6, 80e6 };
-    if (dir == SOAPY_SDR_TX) return { 40e6 };
+    if (dir == SOAPY_SDR_RX) return { 30.72e6, 40e6, 80e6 }; // We support any sample rate, but give a few examples
+    if (dir == SOAPY_SDR_TX) return { 40e6 }; // Also support any rate
     return {};
 }
 
 void MipiDevice::setSampleRate(const int dir, const size_t, const double rate)
 {
     if (dir == SOAPY_SDR_RX) {
+        std::lock_guard<std::recursive_mutex> lock(rxMutex_);
         lastRxRate_ = rate;
         if (rate > 0.0) sampleRateRatio_ = kFsIn / rate;
         else            sampleRateRatio_ = 1.0;
@@ -354,23 +496,32 @@ void MipiDevice::setSampleRate(const int dir, const size_t, const double rate)
         rxFloatBuf_.init(rxMaxPairs * 2);
 
         rxFilter_config_(rate);
+        SoapySDR::logf(SOAPY_SDR_INFO,
+                       "MipiDevice::setSampleRate RX %.6f Msps ratio=%.9f",
+                       rate / 1e6, sampleRateRatio_);
         return;
-    } else if (dir == SOAPY_SDR_TX) {
-        lastTxRate_ = rate;
-        txResampler_config_(rate);
-        return;
-    } else {
-        sampleRateRatio_ = 1.0;
     }
 
-    rxFilter_config_(rate);
+    if (dir == SOAPY_SDR_TX) {
+        std::lock_guard<std::recursive_mutex> lock(txMutex_);
+        lastTxRate_ = rate;
+        txResampler_config_(rate);
+        SoapySDR::logf(SOAPY_SDR_INFO,
+                       "MipiDevice::setSampleRate TX %.6f Msps ratio=%.9f",
+                       rate / 1e6, txSampleRateRatio_);
+        return;
+    }
 }
 
 int MipiDevice::readStream(SoapySDR::Stream *stream, void * const *buffs,
                            const size_t numElems, int &flags,
                            long long &timeNs, const long timeoutUs)
 {
-    (void)stream;
+    auto *s = reinterpret_cast<MipiStream*>(stream);
+    if (!s || s->dir != SOAPY_SDR_RX) return SOAPY_SDR_STREAM_ERROR;
+
+    std::lock_guard<std::recursive_mutex> lock(rxMutex_);
+
     flags = 0;
     timeNs = 0;
 
@@ -461,7 +612,7 @@ int MipiDevice::readStream(SoapySDR::Stream *stream, void * const *buffs,
 
 void MipiDevice::txRingInit_()
 {
-    const double lineBytesPerSec = double(txFps_) * double(txBytesPerLine_) * double(txLines_);
+    const double lineBytesPerSec = 2.0 * txLineRate_;
     const double defaultQueueSeconds = 0.10; 
     size_t want = size_t(lineBytesPerSec * defaultQueueSeconds);
 
@@ -510,13 +661,18 @@ void MipiDevice::txRingFlush_(long timeoutUs)
 }
 
 int MipiDevice::writeStream(
-    SoapySDR::Stream * /*stream*/,
+    SoapySDR::Stream *stream,
     const void * const *buffs,
     const size_t numElems,
     int &flags,
     const long long /*timeNs*/,
     const long timeoutUs)
 {
+    auto *s = reinterpret_cast<MipiStream*>(stream);
+    if (!s || s->dir != SOAPY_SDR_TX) return SOAPY_SDR_STREAM_ERROR;
+
+    std::lock_guard<std::recursive_mutex> lock(txMutex_);
+
     (void)flags;
     if (fdTx_ < 0) return SOAPY_SDR_NOT_SUPPORTED;
     if (!buffs || !buffs[0]) return SOAPY_SDR_STREAM_ERROR;
@@ -544,7 +700,7 @@ int MipiDevice::writeStream(
             if (logicalFreePairs == 0) return SOAPY_SDR_TIMEOUT;
         }
 
-        const size_t mtu = this->getStreamMTU(nullptr);
+        const size_t mtu = this->getStreamMTU(stream);
         size_t acceptPairs = std::min(numElems, logicalFreePairs);
         if (acceptPairs > mtu) acceptPairs = mtu;
         if (acceptPairs == 0) return SOAPY_SDR_TIMEOUT;
@@ -569,7 +725,7 @@ int MipiDevice::writeStream(
 
     // PATH B: Native Rate / Bypass (No Resampling)
     {
-        const size_t mtuElems = this->getStreamMTU(nullptr);
+        const size_t mtuElems = this->getStreamMTU(stream);
         const size_t reqElems = std::min(numElems, mtuElems);
 
         const size_t reqBytes = reqElems * 2;
@@ -607,8 +763,23 @@ SoapySDR::Kwargs MipiDevice::getHardwareInfo() const
     return k;
 }
 
-size_t MipiDevice::getStreamMTU(SoapySDR::Stream * /*stream*/) const
+size_t MipiDevice::getStreamMTU(SoapySDR::Stream *stream) const
 {
+    const auto *s = reinterpret_cast<const MipiStream*>(stream);
+
+    if (s && s->dir == SOAPY_SDR_RX) {
+        const size_t rxFrameSize = (s->channels.size() == 4) ? 8 : 2;
+        size_t rxElems = rxSpanBytes_ ? (rxSpanBytes_ / rxFrameSize) :
+                         (rxChunkBytes_ ? (rxChunkBytes_ / rxFrameSize) : size_t(16384));
+        return rxElems ? rxElems : size_t(16384);
+    }
+
+    if (s && s->dir == SOAPY_SDR_TX) {
+        size_t txElems = txFbBytes_ ? (txFbBytes_ / 2) : size_t(16384);
+        return txElems ? txElems : size_t(16384);
+    }
+
+    // Backward-compatible fallback for internal calls that do not have a stream handle.
     size_t txElems = txFbBytes_ ? (txFbBytes_ / 2) : size_t(16384);
     size_t rxFrameSize = (rxChannels_.size() == 4) ? 8 : 2;
     size_t rxElems = rxSpanBytes_ ? (rxSpanBytes_ / rxFrameSize) :
@@ -788,9 +959,12 @@ ssize_t MipiDevice::tx_write_staging(const void *src, size_t bytes, long timeout
 void MipiDevice::txResampler_config_(double hostRate)
 {
     if (txLineRate_ <= 0.0) {
-        txLineRate_ = (txFps_ && txBytesPerLine_ && txLines_)
-            ? (double(txFps_) * double(txBytesPerLine_) * double(txLines_) / 2.0)
-            : 0.0;
+        const double txPayloadBytes = double(txBytesPerLine_) * double(txLines_);
+        const double txTotalBytes   = txPayloadBytes
+                                    + double(txOverheadBytesPerLine_) * double(txLines_)
+                                    + double(txFrameExtraBytes_);
+        txPayloadFraction_ = (txTotalBytes > 0.0) ? (txPayloadBytes / txTotalBytes) : 1.0;
+        txLineRate_ = 0.5 * txDsiByteRate_ * txPayloadFraction_;
     }
 
     txResampler_.reset();
@@ -814,8 +988,10 @@ void MipiDevice::txResampler_config_(double hostRate)
         txFloatBuf_.init(txInMaxPairs * 2);
     }
 
-    SoapySDR::logf(SOAPY_SDR_INFO, "TX resampler enabled: host=%.6f Msps -> line=%.6f Msps (ratio=%.6f)",
-                   hostRate/1e6, txLineRate_/1e6, txSampleRateRatio_);
+    SoapySDR::logf(SOAPY_SDR_INFO,
+                   "TX resampler enabled: host=%.6f Msps -> payload=%.6f Msps (ratio=%.6f, dsi_byte=%.6f MHz, payload_fraction=%.9f)",
+                   hostRate/1e6, txLineRate_/1e6, txSampleRateRatio_,
+                   txDsiByteRate_/1e6, txPayloadFraction_);
 }
 
 void MipiDevice::txProduceToRing_(long timeoutUs)

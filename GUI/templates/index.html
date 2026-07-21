@@ -1,0 +1,1313 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>QuadRF Control</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='pico.min.css') }}">
+    <style>
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+
+        :root {
+            --rx-color: #38bdf8;
+            --tx-color: #f43f5e;
+            --bg-color: #0f172a;
+            --panel-bg: #1e293b;
+            --card-bg: #273447;
+            --border-radius: 8px;
+            --font-family: system-ui, -apple-system, sans-serif;
+            --font-mono: ui-monospace, "Cascadia Code", monospace;        
+        }
+
+        body {
+            background-color: var(--bg-color);
+            font-family: var(--font-family);
+            color: #f8fafc;
+            font-size: 13px;
+        }
+
+        h1 {
+            text-align: center;
+            margin: 1rem 0;
+            font-size: 1.35rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.25rem;
+        }
+        h1 img.logo {
+            height: 2.5rem; /* Scales the logo down nicely */
+            width: auto;
+        }
+        h1 span { 
+            font-weight: 600;
+            font-style: italic;
+            color: #ffffff; 
+        }
+
+        /* Main Panels */
+        .panel {
+            background-color: var(--panel-bg);
+            padding: 1rem; /* Reduced from 1.25rem */
+            border-radius: var(--border-radius);
+            margin-bottom: 1.25rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+            border-top: 3px solid;
+        }
+        .panel-rx { border-top-color: var(--rx-color); }
+        .panel-tx { border-top-color: var(--tx-color); }
+        .panel-console { border-top-color: #10b981; }
+
+        .header-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            margin-bottom: 0.75rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .header-row h2 {
+            margin: 0;
+            font-size: 1.15rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .controls-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            align-items: center;
+            justify-content: flex-end;
+            flex-grow: 1;
+        }
+
+        /* Pill Indicators */
+        .status-pill {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-weight: 600;
+            font-size: 0.7rem;
+            color: #cbd5e1;
+            background: rgba(0,0,0,0.3);
+            padding: 0.25rem 0.5rem;
+            border-radius: 12px;
+            white-space: nowrap;
+        }
+
+        .indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: #475569;
+        }
+        .indicator.locked { background-color: #10b981; box-shadow: 0 0 5px #10b981; }
+        .indicator.active-tx { background-color: var(--tx-color); box-shadow: 0 0 5px var(--tx-color); }
+
+        /* Strict Alignment Grids */
+        .fluid-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); /* Reduced from 260px */
+            gap: 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .control-group {
+            background: var(--card-bg);
+            padding: 0.6rem 0.75rem; /* More compact padding */
+            border-radius: var(--border-radius);
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        /* Forces left-label and right-input alignment */
+        .setting-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.25rem;
+        }
+        
+        .value-group {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 0.25rem;
+        }
+
+        label {
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: #cbd5e1;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .unit-text { color: #94a3b8; font-size: 0.75rem; margin-top: 0.1rem; }
+
+        /* Clean Inputs - OVERRIDING PICO CSS */
+        .readout-input {
+            background: transparent !important;
+            border: 1px solid transparent !important;
+            border-radius: 4px;
+            color: #fff !important;
+            font-family: var(--font-mono);
+            font-size: 1rem !important;
+            font-weight: 600;
+            padding: 0.1rem 0.25rem !important;
+            text-align: right;
+            width: 75px !important;
+            height: auto !important;
+            margin: 0 !important; 
+            display: inline-block !important; 
+            box-shadow: none !important;
+        }
+        .readout-input:focus {
+            outline: none;
+            background: rgba(0,0,0,0.2) !important;
+            border-color: #64748b !important;
+        }
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type="checkbox"] { margin: 0 !important; width: 16px !important; height: 16px !important; }
+
+        /* Compact Phase Cards */
+        .phase-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.5rem;
+        }
+        @media (min-width: 1024px) { .phase-grid { grid-template-columns: repeat(4, 1fr); } }
+
+        .phase-card {
+            background: rgba(0,0,0,0.2);
+            padding: 0.5rem;
+            border-radius: 6px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        /* Sliders */
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+            margin: 0.5rem 0 0 0 !important;
+            padding: 0 !important;
+        }
+        input[type="range"]::-webkit-slider-runnable-track {
+            width: 100%; height: 4px; background: #0f172a; border-radius: 2px;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 14px; width: 14px; border-radius: 50%;
+            background: #e2e8f0; margin-top: -5px; cursor: pointer;
+        }
+        .panel-rx input[type="range"]::-webkit-slider-thumb { border: 2px solid var(--rx-color); }
+        .panel-tx input[type="range"]::-webkit-slider-thumb { border: 2px solid var(--tx-color); }
+
+        .panel-tx input[type="checkbox"]:checked {
+            background-color: var(--tx-color);
+            border-color: var(--tx-color);
+        }
+
+        .panel-tx input[type="checkbox"]:focus {
+            box-shadow: 0 0 0 0.125rem rgba(244, 63, 94, 0.25); /* Subtle red focus ring */
+        }
+
+        /* Meters */
+        .meter-wrapper {
+            display: flex; align-items: center; gap: 0.5rem;
+            background: rgba(0,0,0,0.3); padding: 0.25rem 0.5rem;
+            border-radius: 12px; font-size: 0.75rem; font-weight: 600;
+        }
+        meter { width: 60px; height: 6px; border-radius: 3px; background: #0f172a; border: none; }
+        meter::-webkit-meter-bar { background: #0f172a; border: none; }
+        .panel-rx meter::-webkit-meter-optimum-value { background: var(--rx-color); }
+        .panel-tx meter::-webkit-meter-optimum-value { background: var(--tx-color); }
+        meter::-webkit-meter-suboptimum-value { background: linear-gradient(90deg, #f59e0b, #f43f5e); }
+
+        /* Buttons & Utils */
+        button.outline {
+            padding: 0.2rem 0.75rem !important; font-size: 0.75rem !important; border-radius: 12px !important;
+            background: transparent !important; margin: 0 !important; font-weight: 600; cursor: pointer;
+            width: auto !important;
+        }
+        .panel-rx button.outline { color: var(--rx-color); border: 1px solid var(--rx-color); }
+        .panel-tx button.outline { color: var(--tx-color); border: 1px solid var(--tx-color); }
+        
+        .hidden { display: none !important; }
+        select { 
+            padding: 0.2rem 1.5rem 0.2rem 0.5rem !important; 
+            font-size: 0.8rem !important; 
+            height: auto !important; 
+            margin: 0 !important; 
+            background-color: #0f172a !important; 
+            border: 1px solid rgba(255,255,255,0.1) !important; 
+            border-radius: 4px; 
+            color: #fff;
+            width: auto !important;
+        }
+
+        /* Console */
+        #consoleOutput {
+            background-color: transparent; color: #a7f3d0; padding: 1rem;
+            height: 120px; overflow-y: auto; font-family: var(--font-mono);
+            font-size: 0.75rem; margin: 0; white-space: pre-wrap; word-break: break-all;
+        }
+        .log-time { color: #64748b; } .log-cmd { color: #f8fafc; } .log-err { color: #f87171; }
+
+        /* Wi-Fi Panel & Banner Styles */
+        .panel-wifi { border-top-color: #f59e0b; }
+        
+        .banner {
+            padding: 0.75rem;
+            margin-bottom: 1rem;
+            border-radius: var(--border-radius);
+            text-align: center;
+            font-weight: 600;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+        }
+        .banner.success { background: rgba(16, 185, 129, 0.15); border: 1px solid #10b981; color: #a7f3d0; }
+        .banner.error { background: rgba(244, 63, 94, 0.15); border: 1px solid #f43f5e; color: #fecdd3; }
+
+        .wifi-input {
+            width: 100%;
+            padding: 0.5rem;
+            background: rgba(0,0,0,0.2) !important;
+            border: 1px solid rgba(255,255,255,0.1) !important;
+            color: #fff;
+            border-radius: 4px;
+            font-family: var(--font-family);
+            font-size: 0.85rem;
+        }
+        .wifi-input:focus { outline: none; border-color: #f59e0b !important; }
+
+        /* Beam Steering Visualizer */
+        .beam-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem;
+            background: rgba(0,0,0,0.2);
+            border-radius: var(--border-radius);
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .beam-pad {
+            width: 100%;
+            max-width: 260px;
+            aspect-ratio: 1;
+            background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+            border: 2px solid var(--rx-color);
+            border-radius: 50%;
+            position: relative;
+            touch-action: none;
+            cursor: crosshair;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
+            overflow: hidden;
+        }
+        .panel-tx .beam-pad { border-color: var(--tx-color); }
+        .panel-tx .beam-puck { box-shadow: 0 0 15px var(--tx-color), inset 0 0 5px rgba(0,0,0,0.5); }
+
+        /* Crosshairs for the pad */
+        .beam-pad::before, .beam-pad::after { content: ''; position: absolute; background: rgba(255, 255, 255, 0.1); }
+        .beam-pad::before { top: 0; bottom: 0; left: 50%; width: 1px; }
+        .beam-pad::after { left: 0; right: 0; top: 50%; height: 1px; }
+
+        .beam-puck {
+            width: 22px; height: 22px; background: #fff; border-radius: 50%;
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 15px var(--rx-color), inset 0 0 5px rgba(0,0,0,0.5);
+            pointer-events: none; transition: transform 0.05s linear;
+        }
+
+        .width-control { width: 100%; max-width: 260px; }
+
+        /* Mobile specific overrides */
+        @media (max-width: 600px) {
+            .panel { padding: 0.75rem; margin-bottom: 0.75rem; }
+            .header-row { flex-direction: column; align-items: stretch; gap: 0.75rem; }
+            .header-row h2 { justify-content: flex-start; }
+            .controls-row { justify-content: flex-start; width: 100%; }
+            .beam-pad { max-width: 220px; }
+            .readout-input { width: 60px !important; font-size: 0.9rem !important; }
+            .phase-card .readout-input { width: 45px !important; }
+        }
+    </style>
+    <script src="{{ url_for('static', filename='socket.io.min.js') }}"></script>
+</head>
+<body>
+    <main class="container">
+        <h1>
+            <img src="{{ url_for('static', filename='rf_quad_kit_logo.png') }}" alt="QuadRF" class="logo">
+            <span>Controls</span>
+        </h1>
+
+        {% if wifi_success_msg %}
+        <div class="banner success">{{ wifi_success_msg }}</div>
+        {% endif %}
+        
+        {% if wifi_error_msg %}
+        <div class="banner error">{{ wifi_error_msg }}</div>
+        {% endif %}
+
+        <article class="panel panel-rx">
+            <div class="header-row">
+                <h2><span class="indicator" style="background-color: var(--rx-color);"></span> Receive</h2>
+                <div class="controls-row">
+                    <label style="cursor: pointer; display: flex; align-items: center; gap: 0.4rem; font-weight: 600; font-size: 0.85rem;">
+                        <input type="checkbox" id="rxPolToggle" role="switch" checked>&nbsp;
+                        <span id="rxPolLabel">RHCP</span>
+                    </label>
+                    <div class="status-pill"><div class="indicator" id="rxPllIndicator"></div> PLL</div>
+                    <button id="rxResetBtn" class="outline">Reset</button>
+                </div>
+            </div>
+
+            <div class="fluid-grid">
+                <div class="control-group">
+                    <div class="setting-row">
+                        <label>Carrier Freq</label>
+                        <div class="value-group">
+                            <input type="number" id="rxFreqNum" step="any" value="5500" class="readout-input">
+                            <span class="unit-text">MHz</span>
+                        </div>
+                    </div>
+                    <input type="range" id="rxFreq" min="4900" max="6000" step="1" value="5500">
+                </div>
+                
+                <div class="control-group">
+                    <div class="setting-row">
+                        <label id="rxGainLabelText">Rx Gain</label>
+                        <div class="value-group" style="gap: 0.5rem;">
+                            <div class="value-group">
+                                <input type="number" id="rxGainNum" value="30" class="readout-input">
+                                <span id="rxGainUnit" class="unit-text">dB</span>
+                            </div>
+                            <label style="cursor: pointer;"><input type="checkbox" id="rxAgc" role="switch"> &nbsp;AGC</label>
+                        </div>
+                    </div>
+                    <input type="range" id="rxGain" min="0" max="63" step="1" value="30">
+                </div>
+
+                <div class="control-group">
+                    <div class="setting-row">
+                        <label>Filter BW</label>
+                        <div class="value-group">
+                            <span id="rxBwReadoutText" class="readout-input">40.000</span>
+                            <span class="unit-text">MHz</span>
+                        </div>
+                    </div>
+                    <input type="range" id="rxBwSlider" min="5" max="63" step="1" value="6">
+                    <div style="text-align: right; font-size: 0.65rem; color: #64748b; margin-top: 0.25rem; display: none;">Divider k=<span id="rxBwK">6</span></div>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.75rem;">
+                    <label style="font-size: 0.95rem;">Antennas</label>
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; padding-bottom: 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                        <!-- Replaced rigid max-width with 100% -->
+                        <select id="rxAntennaMode" style="flex-grow: 1; max-width: 100%;">
+                            <option value="4">Interleave 4 Antennas</option>
+                            <option value="1" selected>Beamforming</option>
+                            <option value="test">Internal Tone</option>
+                        </select>
+                    </div>
+                </div>
+
+<div id="rx1AntennaGrp" class="control-group" style="padding: 0; background: transparent; border: none;">
+    <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 0.75rem; padding: 0 0.25rem;">
+        <label id="rxAutoSteerContainer" style="cursor: pointer; font-size: 0.8rem; font-weight: normal; margin: 0;">
+            <input type="checkbox" id="rxAutoSteer" checked> Auto Steer
+        </label>
+        <label style="cursor: pointer; font-size: 0.8rem; font-weight: normal; margin: 0;">
+            <input type="checkbox" id="rxControlModeToggle" role="switch"> Manual Phase
+        </label>
+    </div>
+
+    <div id="rxBeamVisualizerGrp" class="beam-container">
+        <div style="text-align: center; width: 100%;">
+            <div id="rxBeamPad" class="beam-pad">
+                <div id="rxBeamPuck" class="beam-puck"></div>
+            </div>
+        </div>
+        
+        <div style="display: flex; justify-content: center; gap: 1rem; width: 100%;">
+            <div class="value-group">
+                <label style="font-size: 0.75rem;">Az:</label>
+                <input type="number" id="rxAzNum" value="0" min="-45" max="45" class="readout-input" style="width: 50px !important;">
+                <span class="unit-text">&deg;</span>
+            </div>
+            <div class="value-group">
+                <label style="font-size: 0.75rem;">El:</label>
+                <input type="number" id="rxElNum" value="0" min="-45" max="45" class="readout-input" style="width: 50px !important;">
+                <span class="unit-text">&deg;</span>
+            </div>
+        </div>
+        
+        <div class="width-control control-group" style="width: 100%;">
+            <div class="setting-row">
+                <label>Beam Curvature</label>
+                <div class="value-group">
+                    <input type="number" id="rxBeamWidthNum" value="0" class="readout-input" min="-100" max="100">
+                </div>
+            </div>
+            <input type="range" id="rxBeamWidth" min="-100" max="100" step="1" value="0">
+        </div>
+    </div>
+
+    <div id="rxManualPhaseGrp" class="phase-grid hidden">
+        <div class="phase-card">
+            <div class="setting-row">
+                <label>Ant 1</label>
+                <div class="value-group"><input type="number" id="rxP1Num" value="0" class="readout-input" style="width: 50px !important;"><span class="unit-text">&deg;</span></div>
+            </div>
+            <input type="range" class="rx-phase" id="rxP1" min="0" max="359" value="0">
+        </div>
+        <div class="phase-card">
+            <div class="setting-row">
+                <label>Ant 2</label>
+                <div class="value-group"><input type="number" id="rxP2Num" value="0" class="readout-input" style="width: 50px !important;"><span class="unit-text">&deg;</span></div>
+            </div>
+            <input type="range" class="rx-phase" id="rxP2" min="0" max="359" value="0">
+        </div>
+        <div class="phase-card">
+            <div class="setting-row">
+                <label>Ant 3</label>
+                <div class="value-group"><input type="number" id="rxP3Num" value="0" class="readout-input" style="width: 50px !important;"><span class="unit-text">&deg;</span></div>
+            </div>
+            <input type="range" class="rx-phase" id="rxP3" min="0" max="359" value="0">
+        </div>
+        <div class="phase-card">
+            <div class="setting-row">
+                <label>Ant 4</label>
+                <div class="value-group"><input type="number" id="rxP4Num" value="0" class="readout-input" style="width: 50px !important;"><span class="unit-text">&deg;</span></div>
+            </div>
+            <input type="range" class="rx-phase" id="rxP4" min="0" max="359" value="0">
+        </div>
+    </div>
+</div>
+                <div id="rxTestToneGrp" class="hidden">
+                    <div class="setting-row">
+                        <label>Test Tone Offset</label>
+                        <div class="value-group"><input type="number" id="rxToneNum" step="any" value="0" class="readout-input"><span class="unit-text">MHz</span></div>
+                    </div>
+                    <input type="range" id="rxToneFreq" step="0.1" value="0">
+                </div>
+            </div>
+        </article>
+
+        <article class="panel panel-tx">
+            <div class="header-row">
+                <h2><span class="indicator" style="background-color: var(--tx-color);"></span> Transmit</h2>                
+                <div class="controls-row">
+                    <label style="cursor:pointer;"><input type="checkbox" id="txOnOff" role="switch"> <div class="indicator" id="txActiveIndicator"></div> Enable</label>
+                    <div class="status-pill"><div class="indicator" id="txPllIndicator"></div> PLL</div>
+                    <button id="txResetBtn" class="outline">Reset</button>
+                    <div class="status-pill" style="gap: 0.6rem;">
+                        <span style="color: #94a3b8;">Enables:</span>
+                        <label style="cursor:pointer; display: flex; align-items: center; gap: 0.2rem; margin: 0;"><input type="checkbox" class="tx-ant-en" id="txAnt1" checked> 1</label>
+                        <label style="cursor:pointer; display: flex; align-items: center; gap: 0.2rem; margin: 0;"><input type="checkbox" class="tx-ant-en" id="txAnt2" checked> 2</label>
+                        <label style="cursor:pointer; display: flex; align-items: center; gap: 0.2rem; margin: 0;"><input type="checkbox" class="tx-ant-en" id="txAnt3" checked> 3</label>
+                        <label style="cursor:pointer; display: flex; align-items: center; gap: 0.2rem; margin: 0;"><input type="checkbox" class="tx-ant-en" id="txAnt4" checked> 4</label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="fluid-grid">
+                <div class="control-group">
+                    <div class="setting-row">
+                        <label>Carrier Freq</label>
+                        <div class="value-group">
+                            <input type="number" id="txFreqNum" step="any" value="5500" class="readout-input">
+                            <span class="unit-text">MHz</span>
+                        </div>
+                    </div>
+                    <input type="range" id="txFreq" min="4900" max="6000" step="1" value="5500">
+                </div>
+                
+                <div class="control-group">
+                    <div class="setting-row">
+                        <label>Tx Gain</label>
+                        <div class="value-group" style="gap: 0.5rem;">
+                            <div class="value-group">
+                                <input type="number" id="txGainNum" value="30" class="readout-input">
+                                <span class="unit-text">dB</span>
+                            </div>
+                            <label style="cursor: pointer;"><input type="checkbox" id="txAgc" role="switch"> ALC</label>
+                        </div>
+                    </div>
+                    <input type="range" id="txGain" min="0" max="63" step="1" value="30">
+                </div>
+            </div>
+
+            <div class="control-group">
+                <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.75rem;">
+                    <label style="font-size: 0.95rem;">Antennas</label>
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                        <!-- Replaced rigid max-width with 100% -->
+                        <select id="txMode" style="flex-grow: 1; max-width: 100%;">
+                            <option value="normal">Baseband Source</option>
+                            <option value="test">CW Tone Source</option>
+                        </select>
+                    </div>
+                </div>
+
+<div id="tx1AntennaGrp" class="control-group" style="padding: 0; background: transparent; border: none;">
+    <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 0.75rem; padding: 0 0.25rem;">
+        <label style="cursor: pointer; font-size: 0.8rem; font-weight: normal; margin: 0;">
+            <input type="checkbox" id="txLockRx"> Lock to Rx beam
+        </label>
+        <label style="cursor: pointer; font-size: 0.8rem; font-weight: normal; margin: 0;">
+            <input type="checkbox" id="txControlModeToggle" role="switch"> Manual Phase
+        </label>
+    </div>
+
+    <div id="txBeamVisualizerGrp" class="beam-container">
+        <div style="text-align: center; width: 100%;">
+            <div id="txBeamPad" class="beam-pad">
+                <div id="txBeamPuck" class="beam-puck"></div>
+            </div>
+        </div>
+        
+        <div style="display: flex; justify-content: center; gap: 1rem; width: 100%;">
+            <div class="value-group">
+                <label style="font-size: 0.75rem;">Az:</label>
+                <input type="number" id="txAzNum" value="0" min="-45" max="45" class="readout-input" style="width: 50px !important;">
+                <span class="unit-text">&deg;</span>
+            </div>
+            <div class="value-group">
+                <label style="font-size: 0.75rem;">El:</label>
+                <input type="number" id="txElNum" value="0" min="-45" max="45" class="readout-input" style="width: 50px !important;">
+                <span class="unit-text">&deg;</span>
+            </div>
+        </div>
+
+        <div class="width-control control-group" style="width: 100%;">
+            <div class="setting-row">
+                <label>Beam Curvature</label>
+                <div class="value-group">
+                    <input type="number" id="txBeamWidthNum" value="0" class="readout-input" min="-100" max="100">
+                </div>
+            </div>
+            <input type="range" id="txBeamWidth" min="-100" max="100" step="1" value="0">
+        </div>
+    </div>
+
+    <div id="txManualPhaseGrp" class="phase-grid hidden">
+        <div class="phase-card">
+            <div class="setting-row">
+                <label>Ant 1</label>
+                <div class="value-group"><input type="number" id="txP1Num" value="0" class="readout-input" style="width: 50px !important;"><span class="unit-text">&deg;</span></div>
+            </div>
+            <input type="range" class="tx-phase" id="txP1" min="0" max="359" value="0">
+        </div>
+        <div class="phase-card">
+            <div class="setting-row">
+                <label>Ant 2</label>
+                <div class="value-group"><input type="number" id="txP2Num" value="0" class="readout-input" style="width: 50px !important;"><span class="unit-text">&deg;</span></div>
+            </div>
+            <input type="range" class="tx-phase" id="txP2" min="0" max="359" value="0">
+        </div>
+        <div class="phase-card">
+            <div class="setting-row">
+                <label>Ant 3</label>
+                <div class="value-group"><input type="number" id="txP3Num" value="0" class="readout-input" style="width: 50px !important;"><span class="unit-text">&deg;</span></div>
+            </div>
+            <input type="range" class="tx-phase" id="txP3" min="0" max="359" value="0">
+        </div>
+        <div class="phase-card">
+            <div class="setting-row">
+                <label>Ant 4</label>
+                <div class="value-group"><input type="number" id="txP4Num" value="0" class="readout-input" style="width: 50px !important;"><span class="unit-text">&deg;</span></div>
+            </div>
+            <input type="range" class="tx-phase" id="txP4" min="0" max="359" value="0">
+        </div>
+    </div>
+</div>
+                <div id="txTestToneGrp" class="hidden" style="margin-top: 1rem;">
+                    <div class="setting-row">
+                        <label>CW Tone Offset</label>
+                        <div class="value-group"><input type="number" id="txToneNum" step="any" value="0" class="readout-input"><span class="unit-text">MHz</span></div>
+                    </div>
+                    <input type="range" id="txToneFreq" step="0.1" value="0">
+                </div>
+            </div>
+        </article>
+
+        <article class="panel panel-wifi">
+            <div class="header-row">
+                <h2><span class="indicator" style="background-color: #f59e0b;"></span> Network Setup</h2>
+                <div class="status-pill">Connect to Router/Hotspot</div>
+            </div>
+
+            <form method="POST" action="" style="margin-bottom: 0;">
+                <div class="fluid-grid" style="align-items: end; margin-bottom: 0;">
+                    <div class="control-group">
+                        <label style="margin-bottom: 0.5rem;">Network Name (SSID)</label>
+                        <input type="text" name="ssid" class="wifi-input" required placeholder="e.g. MyHomeNetwork">
+                    </div>
+                    
+                    <div class="control-group">
+                        <label style="margin-bottom: 0.5rem;">Password</label>
+                        <input type="password" name="password" class="wifi-input" placeholder="(Leave blank if open)">
+                    </div>
+                    
+                    <div class="control-group" style="background: transparent; border: none; padding: 0;">
+                        <button type="submit" class="outline" style="width: 100% !important; padding: 0.7rem !important; border-color: #f59e0b; color: #f59e0b; font-size: 0.9rem !important;">
+                            Connect & Reboot
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </article>
+
+        <article class="panel panel-console" style="padding: 0;">
+            <div style="background: rgba(0,0,0,0.3); padding: 0.5rem 1rem; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                <span style="font-size: 0.75rem; font-weight: 600; color: #10b981;">> System Terminal</span>
+            </div>
+            <pre id="consoleOutput">Hardware initialization sequence complete...\n</pre>
+        </article>
+    </main>
+
+    <script>
+        const consoleDiv = document.getElementById('consoleOutput');
+        
+        function logToConsole(cmd, result, isError=false) {
+            const time = new Date().toLocaleTimeString([], {hour12: false, hour: '2-digit', minute:'2-digit', second:'2-digit'});
+            const timeSpan = `<span class="log-time">[${time}]</span>`;
+            const cmdSpan = `<span class="log-cmd">\$ ${cmd}</span>`;
+            let outSpan = isError ? `<span class="log-err">${result}</span>` : result;
+            
+            consoleDiv.innerHTML += `${timeSpan} ${cmdSpan}\n  > ${outSpan}\n\n`;
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+        }
+
+        function updateToneBounds(kValue) {
+            const maxFreq = Math.floor((240.0 / kValue) / 4.0 * 10) / 10;
+            
+            ['rxToneNum', 'rxToneFreq', 'txToneNum', 'txToneFreq'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) { 
+                    el.min = -maxFreq; 
+                    el.max = maxFreq; 
+                    let currentVal = parseFloat(el.value);
+                    if (currentVal > maxFreq) el.value = maxFreq;
+                    if (currentVal < -maxFreq) el.value = -maxFreq;
+                }
+            });
+        }
+
+        const dragState = { rx: false, tx: false };
+
+        function updatePuckFromPhases(prefix, p1, p2, p3, p4) {
+            if (dragState[prefix]) return; 
+            
+            const freqInput = document.getElementById(`${prefix}FreqNum`);
+            const freqMHz = freqInput ? parseFloat(freqInput.value) || 5500 : 5500;
+            const lambda = 299.79 / freqMHz; 
+            const k = 2.0 * Math.PI / lambda; 
+            const r = 0.02275; 
+            const scale = k * 2.0 * r; 
+
+            // Determine intended focus to prevent anomalous curvature jumps
+            let expected_focus_deg = 0;
+            const widthSlider = document.getElementById(`${prefix}BeamWidth`);
+            if (widthSlider) {
+                expected_focus_deg = parseFloat(widthSlider.value) || 0;
+            }
+            
+            // Auto steer always produces strictly planar waves (0 curvature)
+            const autoSteerCb = document.getElementById(`${prefix}AutoSteer`);
+            if (autoSteerCb && autoSteerCb.checked) {
+                expected_focus_deg = 0; 
+            }
+            let expected_focus = expected_focus_deg * Math.PI / 180.0;
+
+            const angleDiff = (a, b) => {
+                let d = (a - b) % 360;
+                if (d > 180) d -= 360;
+                if (d < -180) d += 360;
+                return d;
+            };
+
+            let phi1 = angleDiff(p2, p1) * Math.PI / 180.0;
+            let phi2 = angleDiff(p3, p1) * Math.PI / 180.0;
+            let phi3 = angleDiff(p4, p1) * Math.PI / 180.0;
+
+            let best_cost = Infinity;
+            let best_u = 0, best_v = 0, best_focus = 0;
+            const inv_sqrt3 = 1.0 / Math.sqrt(3);
+
+            for(let n1 = -2; n1 <= 2; n1++) {
+                for(let n2 = -2; n2 <= 2; n2++) {
+                    for(let n3 = -2; n3 <= 2; n3++) {
+                        let y1 = phi1 + 2.0 * Math.PI * n1;
+                        let y2 = phi2 + 2.0 * Math.PI * n2;
+                        let y3 = phi3 + 2.0 * Math.PI * n3;
+
+                        let gx = (y3 - y1) * inv_sqrt3;
+                        let gy = y2;
+                        let focus = (y1 + y3 - y2) / 2.0;
+
+                        let u = gx / scale;
+                        let v = gy / scale;
+
+                        let radius_sq = u * u + v * v;
+                        let bounds_penalty = radius_sq > 1.0 ? (radius_sq - 1.0) * 1000.0 : 0.0;
+                        
+                        let focus_diff = focus - expected_focus;
+                        
+                        // Strongly penalize curvature deviations from the UI intent
+                        let reg = (u * u + v * v) + (focus_diff * focus_diff * 100.0);
+                        let cost = bounds_penalty + reg;
+
+                        if (cost < best_cost) {
+                            best_cost = cost;
+                            best_u = u;
+                            best_v = v;
+                            best_focus = focus;
+                        }
+                    }
+                }
+            }
+
+            // Apply specific axis mirroring
+            const dirX = prefix === 'tx' ? -1 : 1;
+            const dirY = prefix === 'rx' ? 1 : -1;
+
+            const max_sin = Math.sin(45 * Math.PI / 180.0);
+            let padX = best_u / (max_sin * dirX);
+            let padY = best_v / (max_sin * dirY);
+
+            const padRadius = Math.sqrt(padX * padX + padY * padY);
+            if (padRadius > 1) {
+                padX /= padRadius;
+                padY /= padRadius;
+            }
+
+            const puck = document.getElementById(`${prefix}BeamPuck`);
+            if (puck) {
+                const cssX = ((padX + 1) / 2) * 100;
+                const cssY = ((padY + 1) / 2) * 100;
+                puck.style.left = `${cssX}%`;
+                puck.style.top = `${cssY}%`;
+            }
+
+            // Update Az/El numbers (limited to +/- 45 degrees max)
+            let safeU = padX * max_sin * dirX;
+            let safeV = padY * max_sin * dirY;
+            
+            const azInput = document.getElementById(`${prefix}AzNum`);
+            const elInput = document.getElementById(`${prefix}ElNum`);
+            if (azInput && document.activeElement !== azInput) {
+                azInput.value = Math.round(Math.asin(safeU) * 180.0 / Math.PI) || 0;
+            }
+            if (elInput && document.activeElement !== elInput) {
+                elInput.value = Math.round(Math.asin(safeV) * 180.0 / Math.PI) || 0;
+            }
+
+            const widthNum = document.getElementById(`${prefix}BeamWidthNum`);
+            if (widthSlider && widthNum) {
+                let clampedFocus = Math.round(best_focus * 180.0 / Math.PI);
+                if (clampedFocus > 100) clampedFocus = 100;
+                if (clampedFocus < -100) clampedFocus = -100;
+                
+                if (document.activeElement !== widthSlider && document.activeElement !== widthNum) {
+                    widthSlider.value = clampedFocus;
+                    widthNum.value = clampedFocus;
+                }
+            }
+        }
+
+	function initBeamVisualizer(prefix) {
+            const pad = document.getElementById(`${prefix}BeamPad`);
+            const puck = document.getElementById(`${prefix}BeamPuck`);
+            const widthSlider = document.getElementById(`${prefix}BeamWidth`);
+            const widthNum = document.getElementById(`${prefix}BeamWidthNum`);
+            const azInput = document.getElementById(`${prefix}AzNum`);
+            const elInput = document.getElementById(`${prefix}ElNum`);
+            
+            // Apply specific axis mirroring
+            const dirX = prefix === 'tx' ? -1 : 1;
+            const dirY = prefix === 'rx' ? 1 : -1;
+
+            let beamU = 0;
+            let beamV = 0;
+
+            function calculateAndSendPhases() {
+                let focusVal = 0;
+                if (widthSlider) { focusVal = parseFloat(widthSlider.value); }
+                
+                const freqInput = document.getElementById(`${prefix}FreqNum`);
+                const freqMHz = freqInput ? parseFloat(freqInput.value) || 5500 : 5500;
+                
+                const lambda = 299.79 / freqMHz; 
+                const k_deg = 360.0 / lambda; 
+                const r = 0.02275; 
+                const scale_deg = k_deg * 2.0 * r; 
+                const sqrt3 = Math.sqrt(3);
+                
+                const u = beamU;
+                const v = beamV; 
+
+                let p1 = 0;
+                let p2 = 0.5 * scale_deg * (v - u * sqrt3) + focusVal;
+                let p3 = scale_deg * v;
+                let p4 = 0.5 * scale_deg * (v + u * sqrt3) + focusVal;
+
+                const wrap = (val) => ((val % 360) + 360) % 360;
+                p1 = wrap(p1);
+                p2 = wrap(p2);
+                p3 = wrap(p3);
+                p4 = wrap(p4);
+
+                const phases = [p1, p2, p3, p4];
+                for (let i = 1; i <= 4; i++) {
+                    let val = Math.round(phases[i-1]);
+                    const s = document.getElementById(`${prefix}P${i}`);
+                    const n = document.getElementById(`${prefix}P${i}Num`);
+                    if (s && n) {
+                        s.value = val;
+                        n.value = val;
+                    }
+                }
+                throttledSend(`${prefix}_phases`, { p1, p2, p3, p4 });
+            }
+
+            function updatePuckPosition(clientX, clientY) {
+                const rect = pad.getBoundingClientRect();
+                let x = clientX - rect.left;
+                let y = clientY - rect.top;
+                
+                let padX = (x / rect.width) * 2 - 1;
+                let padY = (y / rect.height) * 2 - 1;
+
+                const radius = Math.sqrt(padX * padX + padY * padY);
+                if (radius > 1) {
+                    padX /= radius;
+                    padY /= radius;
+                }
+
+                const max_sin = Math.sin(45 * Math.PI / 180.0);
+                beamU = padX * max_sin * dirX;
+                beamV = padY * max_sin * dirY;
+
+                const cssX = ((padX + 1) / 2) * 100;
+                const cssY = ((padY + 1) / 2) * 100;
+                puck.style.left = `${cssX}%`;
+                puck.style.top = `${cssY}%`;
+
+                if (azInput) azInput.value = Math.round(Math.asin(beamU) * 180.0 / Math.PI) || 0;
+                if (elInput) elInput.value = Math.round(Math.asin(beamV) * 180.0 / Math.PI) || 0;
+
+                calculateAndSendPhases();
+            }
+
+            pad.addEventListener('pointerdown', (e) => {
+                dragState[prefix] = true;
+                pad.setPointerCapture(e.pointerId);
+                updatePuckPosition(e.clientX, e.clientY);
+            });
+
+            pad.addEventListener('pointermove', (e) => {
+                if (!dragState[prefix]) return;
+                updatePuckPosition(e.clientX, e.clientY);
+            });
+
+            pad.addEventListener('pointerup', (e) => {
+                dragState[prefix] = false;
+                pad.releasePointerCapture(e.pointerId);
+            });
+
+            if (widthSlider && widthNum) {
+                widthSlider.addEventListener('input', (e) => {
+                    widthNum.value = e.target.value;
+                    calculateAndSendPhases();
+                });
+                widthNum.addEventListener('input', (e) => {
+                    let val = parseFloat(e.target.value);
+                    if (val > 100) val = 100;
+                    if (val < -100) val = -100;
+                    widthSlider.value = val;
+                    calculateAndSendPhases();
+                });
+            }
+
+            const handleManualAngles = () => {
+                let az = parseFloat(azInput.value) || 0;
+                let el = parseFloat(elInput.value) || 0;
+                
+                if (az > 45) az = 45; if (az < -45) az = -45;
+                if (el > 45) el = 45; if (el < -45) el = -45;
+                
+                let u = Math.sin(az * Math.PI / 180.0);
+                let v = Math.sin(el * Math.PI / 180.0);
+                
+                const max_sin = Math.sin(45 * Math.PI / 180.0);
+                let padX = u / (max_sin * dirX);
+                let padY = v / (max_sin * dirY);
+                
+                const rSq = padX*padX + padY*padY;
+                if(rSq > 1) {
+                    const r = Math.sqrt(rSq);
+                    padX /= r;
+                    padY /= r;
+                    
+                    u = padX * max_sin * dirX;
+                    v = padY * max_sin * dirY;
+                    
+                    azInput.value = Math.round(Math.asin(u) * 180.0 / Math.PI) || 0;
+                    elInput.value = Math.round(Math.asin(v) * 180.0 / Math.PI) || 0;
+                } else {
+                    azInput.value = az;
+                    elInput.value = el;
+                }
+
+                beamU = u;
+                beamV = v;
+
+                const cssX = ((padX + 1) / 2) * 100;
+                const cssY = ((padY + 1) / 2) * 100;
+                puck.style.left = `${cssX}%`;
+                puck.style.top = `${cssY}%`;
+
+                calculateAndSendPhases();
+            };
+
+            if (azInput) azInput.addEventListener('input', handleManualAngles);
+            if (elInput) elInput.addEventListener('input', handleManualAngles);
+        }
+
+        function applyState(state) {
+            function updateIfUnfocused(id, val) {
+                const el = document.getElementById(id);
+                if (el && document.activeElement !== el && el.value != val) { el.value = val; }
+            }
+            function updateCheckbox(id, checked) {
+                const el = document.getElementById(id);
+                if (el && el.checked !== checked) {
+                    el.checked = checked;
+                    el.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            }
+
+            // Rx State
+            if(state.rx_freq !== undefined) { updateIfUnfocused('rxFreqNum', state.rx_freq); updateIfUnfocused('rxFreq', state.rx_freq); }
+            if(state.rx_agc !== undefined) {
+                const isAgc = state.rx_agc;
+                if (isAgc) {
+                    document.getElementById('rxGainLabelText').innerText = 'AGC Target';
+                    document.getElementById('rxGainUnit').innerText = 'dBFS';
+                    document.getElementById('rxGain').min = -40; document.getElementById('rxGain').max = -6; document.getElementById('rxGain').step = 0.5;
+                    document.getElementById('rxGainNum').min = -40; document.getElementById('rxGainNum').max = -6; document.getElementById('rxGainNum').step = 'any';
+                } else {
+                    document.getElementById('rxGainLabelText').innerText = 'Rx Gain';
+                    document.getElementById('rxGainUnit').innerText = 'dB';
+                    document.getElementById('rxGain').min = 0; document.getElementById('rxGain').max = 63; document.getElementById('rxGain').step = 1;
+                    document.getElementById('rxGainNum').min = 0; document.getElementById('rxGainNum').max = 63; document.getElementById('rxGainNum').step = 1;
+                }
+                updateCheckbox('rxAgc', isAgc);
+                let targetGain = isAgc ? state.rx_gain_dbfs : state.rx_gain;
+                if (targetGain !== undefined) { updateIfUnfocused('rxGainNum', targetGain); updateIfUnfocused('rxGain', targetGain); }
+            }
+            if(state.rx_bw_k !== undefined) {
+                updateToneBounds(state.rx_bw_k);
+                updateIfUnfocused('rxBwSlider', state.rx_bw_k);
+                if (document.activeElement !== document.getElementById('rxBwSlider')) {
+                    document.getElementById('rxBwReadoutText').innerText = (240 / state.rx_bw_k).toFixed(3);
+                    document.getElementById('rxBwK').innerText = state.rx_bw_k;
+                }
+            }
+            if(state.rx_pol !== undefined) {
+                const isRhcp = (state.rx_pol.toLowerCase() === 'rhcp');
+                updateCheckbox('rxPolToggle', isRhcp);
+                const labelEl = document.getElementById('rxPolLabel');
+                if(labelEl) labelEl.innerText = isRhcp ? 'RHCP' : 'LHCP';
+            }            
+            if(state.rx_antenna_mode !== undefined) {
+                const el = document.getElementById('rxAntennaMode');
+                if (el && document.activeElement !== el && el.value !== state.rx_antenna_mode) {
+                    el.value = state.rx_antenna_mode;
+                    el.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            }
+            if(state.rx_auto_steer !== undefined) { updateCheckbox('rxAutoSteer', state.rx_auto_steer); }
+            if(state.rx_tone_freq !== undefined) { updateIfUnfocused('rxToneNum', state.rx_tone_freq); updateIfUnfocused('rxToneFreq', state.rx_tone_freq); }
+
+            for(let i=1; i<=4; i++) {
+                if(state[`rx_p${i}`] !== undefined) { 
+                    let roundedPhase = Math.round(state[`rx_p${i}`]);
+                    updateIfUnfocused(`rxP${i}Num`, roundedPhase); 
+                    updateIfUnfocused(`rxP${i}`, roundedPhase); 
+                }
+            }
+
+            // Apply inverse kinematics for the visualizer pad (Rx)
+            if (state.rx_p1 !== undefined && state.rx_p2 !== undefined && state.rx_p3 !== undefined && state.rx_p4 !== undefined) {
+                updatePuckFromPhases('rx', state.rx_p1, state.rx_p2, state.rx_p3, state.rx_p4);
+            }
+
+            // Tx State
+            if(state.tx_follow_rx !== undefined) { 
+                updateCheckbox('txLockRx', state.tx_follow_rx); 
+                
+                // Dim and disable interaction for the manual phase controls while locked
+                const isLocked = state.tx_follow_rx;
+                document.getElementById('txBeamVisualizerGrp').style.opacity = isLocked ? '0.4' : '1';
+                document.getElementById('txBeamVisualizerGrp').style.pointerEvents = isLocked ? 'none' : 'auto';
+                document.getElementById('txManualPhaseGrp').style.opacity = isLocked ? '0.4' : '1';
+                document.getElementById('txManualPhaseGrp').style.pointerEvents = isLocked ? 'none' : 'auto';
+            }
+            if(state.tx_freq !== undefined) { updateIfUnfocused('txFreqNum', state.tx_freq); updateIfUnfocused('txFreq', state.tx_freq); }
+            if(state.tx_gain !== undefined) { updateIfUnfocused('txGainNum', state.tx_gain); updateIfUnfocused('txGain', state.tx_gain); }
+            if(state.tx_on !== undefined) { updateCheckbox('txOnOff', state.tx_on); }
+            if(state.tx_ant1 !== undefined) updateCheckbox('txAnt1', state.tx_ant1);
+            if(state.tx_ant2 !== undefined) updateCheckbox('txAnt2', state.tx_ant2);
+            if(state.tx_ant3 !== undefined) updateCheckbox('txAnt3', state.tx_ant3);
+            if(state.tx_ant4 !== undefined) updateCheckbox('txAnt4', state.tx_ant4);
+            if(state.tx_tone_en !== undefined) {
+                const el = document.getElementById('txMode');
+                const targetVal = state.tx_tone_en ? "test" : "normal";
+                if (el && document.activeElement !== el && el.value !== targetVal) {
+                    el.value = targetVal;
+                    el.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            }
+            if(state.tx_tone_freq !== undefined) { updateIfUnfocused('txToneNum', state.tx_tone_freq); updateIfUnfocused('txToneFreq', state.tx_tone_freq); }
+
+            for(let i=1; i<=4; i++) {
+                if(state[`tx_p${i}`] !== undefined) { 
+                    let roundedPhase = Math.round(state[`tx_p${i}`]);
+                    updateIfUnfocused(`txP${i}Num`, roundedPhase); 
+                    updateIfUnfocused(`txP${i}`, roundedPhase); 
+                }
+            }
+            
+            // Apply inverse kinematics for the visualizer pad (Tx)
+            if (state.tx_p1 !== undefined && state.tx_p2 !== undefined && state.tx_p3 !== undefined && state.tx_p4 !== undefined) {
+                updatePuckFromPhases('tx', state.tx_p1, state.tx_p2, state.tx_p3, state.tx_p4);
+            }
+
+            // PLL
+            if (state.rx_pll_locked !== undefined) document.getElementById('rxPllIndicator').classList.toggle('locked', state.rx_pll_locked);
+            if (state.tx_pll_locked !== undefined) document.getElementById('txPllIndicator').classList.toggle('locked', state.tx_pll_locked);
+        }
+
+        async function fetchState() {
+            try {
+                const res = await fetch('{{ url_for("get_status") }}');
+                if (!res.ok) throw new Error("Network response was not ok");
+                const state = await res.json();
+                applyState(state);
+            } catch(e) { 
+                console.error("Failed to fetch state", e); 
+            }
+        }
+
+        fetchState();
+        setInterval(fetchState, 200);
+
+        if (typeof io !== 'undefined') {
+            const socket = io({ path: '{{ request.script_root }}/socket.io' });
+            socket.on('sdr_telemetry', function(data) {
+                if(data.rx_power_dbm !== undefined) {
+                    document.getElementById('rxPowerMeter').value = data.rx_power_dbm;
+                    document.getElementById('rxPowerReadout').innerText = data.rx_power_dbm;
+                }
+                if(data.tx_power_dbm !== undefined) {
+                    document.getElementById('txPowerMeter').value = data.tx_power_dbm;
+                    document.getElementById('txPowerReadout').innerText = data.tx_power_dbm;
+                }
+            });
+            socket.on('sdr_status', applyState);
+        }
+
+        function throttle(func, limit) {
+            let lastFunc; let lastRan;
+            return function(...args) {
+                const context = this;
+                if (!lastRan) { func.apply(context, args); lastRan = Date.now(); } 
+                else {
+                    clearTimeout(lastFunc);
+                    lastFunc = setTimeout(function() {
+                        if ((Date.now() - lastRan) >= limit) { func.apply(context, args); lastRan = Date.now(); }
+                    }, limit - (Date.now() - lastRan));
+                }
+            }
+        }
+
+        async function sendCommand(type, value) {
+            try {
+                const res = await fetch('{{ url_for("control_sdr") }}', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type, value })
+                });
+                const result = await res.json();
+                if (result.status === "error") logToConsole(result.executed || type, result.message, true);
+                else logToConsole(result.executed, result.output);
+            } catch (error) { logToConsole("Fetch Error", error.message, true); }
+        }
+
+        const throttledSend = throttle(sendCommand, 200);
+
+        function bindFreqControls(sliderId, numInputId, controlType) {
+            const slider = document.getElementById(sliderId); const numInput = document.getElementById(numInputId);
+            slider.addEventListener('input', (e) => { numInput.value = e.target.value; throttledSend(controlType, e.target.value); });
+            numInput.addEventListener('input', (e) => { slider.value = e.target.value; throttledSend(controlType, e.target.value); });
+        }
+
+        function bindPhaseControls(prefix) {
+            for(let i=1; i<=4; i++) {
+                const slider = document.getElementById(`${prefix}P${i}`);
+                const numInput = document.getElementById(`${prefix}P${i}Num`);
+                if (!slider || !numInput) continue;
+                function sendPhase() {
+                    throttledSend(`${prefix}_phases`, {
+                        p1: document.getElementById(`${prefix}P1`).value, p2: document.getElementById(`${prefix}P2`).value,
+                        p3: document.getElementById(`${prefix}P3`).value, p4: document.getElementById(`${prefix}P4`).value
+                    });
+                }
+                slider.addEventListener('input', (e) => { numInput.value = e.target.value; sendPhase(); });
+                numInput.addEventListener('input', (e) => { slider.value = e.target.value; sendPhase(); });
+            }
+        }
+
+        initBeamVisualizer('rx');
+        initBeamVisualizer('tx');
+
+        document.getElementById('rxResetBtn').addEventListener('click', () => sendCommand('rx_reset', true));
+        bindFreqControls('rxFreq', 'rxFreqNum', 'rx_freq');
+        bindFreqControls('rxToneFreq', 'rxToneNum', 'rx_tone');
+
+        const rxGainSlider = document.getElementById('rxGain'); const rxGainNum = document.getElementById('rxGainNum'); const rxAgcCb = document.getElementById('rxAgc');
+        rxGainSlider.addEventListener('input', (e) => { rxGainNum.value = e.target.value; throttledSend(rxAgcCb.checked ? 'rx_agc' : 'rx_gain', e.target.value); });
+        rxGainNum.addEventListener('input', (e) => { rxGainSlider.value = e.target.value; throttledSend(rxAgcCb.checked ? 'rx_agc' : 'rx_gain', e.target.value); });
+
+        rxAgcCb.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                document.getElementById('rxGainLabelText').innerText = 'AGC Target'; document.getElementById('rxGainUnit').innerText = 'dBFS';
+                rxGainSlider.min = -40; rxGainSlider.max = -6; rxGainSlider.step = 0.5;
+                rxGainNum.min = -40; rxGainNum.max = -6; rxGainNum.step = 'any';
+                if (e.isTrusted) { rxGainSlider.value = -15; rxGainNum.value = -15; throttledSend('rx_agc', -15); }
+            } else {
+                document.getElementById('rxGainLabelText').innerText = 'Rx Gain'; document.getElementById('rxGainUnit').innerText = 'dB';
+                rxGainSlider.min = 0; rxGainSlider.max = 63; rxGainSlider.step = 1;
+                rxGainNum.min = 0; rxGainNum.max = 63; rxGainNum.step = 1;
+                if (e.isTrusted) { rxGainSlider.value = 30; rxGainNum.value = 30; throttledSend('rx_gain', 30); }
+            }
+        });
+
+        document.getElementById('rxPolToggle').addEventListener('change', (e) => {
+            const pol = e.target.checked ? 'rhcp' : 'lhcp';
+            document.getElementById('rxPolLabel').innerText = pol.toUpperCase();
+            if (e.isTrusted) sendCommand('rx_pol', pol);
+        });
+
+        document.getElementById('rxBwSlider').addEventListener('input', (e) => {
+            let kValue = parseInt(e.target.value); let bw = (240 / kValue).toFixed(3);
+            document.getElementById('rxBwReadoutText').innerText = bw; document.getElementById('rxBwK').innerText = kValue;
+            updateToneBounds(kValue); throttledSend('rx_bw', bw);
+        });
+        updateToneBounds(parseInt(document.getElementById('rxBwSlider').value));
+
+        document.getElementById('rxAntennaMode').addEventListener('change', (e) => {
+            const mode = e.target.value;
+            const phaseGrp = document.getElementById('rx1AntennaGrp');
+            const testGrp = document.getElementById('rxTestToneGrp');
+
+            if (mode === '1') {
+                phaseGrp.classList.remove('hidden');
+                testGrp.classList.add('hidden');
+            } else if (mode === '4') {
+                phaseGrp.classList.add('hidden');
+                testGrp.classList.add('hidden');
+            } else if (mode === 'test') {
+                phaseGrp.classList.add('hidden');
+                testGrp.classList.remove('hidden');
+            }
+            
+            if (e.isTrusted) sendCommand('rx_antenna_mode', mode);
+        });
+
+        document.getElementById('rxControlModeToggle').addEventListener('change', (e) => {
+            document.getElementById('rxBeamVisualizerGrp').classList.toggle('hidden', e.target.checked);
+            document.getElementById('rxManualPhaseGrp').classList.toggle('hidden', !e.target.checked);
+        });
+
+        document.getElementById('rxAutoSteer').addEventListener('change', (e) => {
+            const isAuto = e.target.checked;
+            if (e.isTrusted) sendCommand('rx_auto_steer', isAuto);
+        });
+        document.getElementById('rxAutoSteer').dispatchEvent(new Event('change'));
+
+        document.getElementById('rxAntennaMode').dispatchEvent(new Event('change'));
+
+        bindPhaseControls('rx');
+
+        document.getElementById('txResetBtn').addEventListener('click', () => sendCommand('tx_reset', true));
+        document.getElementById('txOnOff').addEventListener('change', (e) => {
+            document.getElementById('txActiveIndicator').classList.toggle('active-tx', e.target.checked);
+            if (e.isTrusted) sendCommand('tx_on_off', e.target.checked);
+        });
+
+        bindFreqControls('txFreq', 'txFreqNum', 'tx_freq');
+        bindFreqControls('txToneFreq', 'txToneNum', 'tx_tone');
+
+        const txGainSlider = document.getElementById('txGain'); const txGainNum = document.getElementById('txGainNum');
+        txGainSlider.addEventListener('input', (e) => { txGainNum.value = e.target.value; throttledSend('tx_gain', e.target.value); });
+        txGainNum.addEventListener('input', (e) => { txGainSlider.value = e.target.value; throttledSend('tx_gain', e.target.value); });
+
+        document.getElementById('txAgc').addEventListener('change', (e) => {
+            txGainSlider.disabled = e.target.checked; txGainNum.disabled = e.target.checked;
+            if (e.isTrusted) sendCommand('tx_agc', e.target.checked);
+        });
+
+        document.getElementById('txMode').addEventListener('change', (e) => {
+            document.getElementById('txTestToneGrp').classList.toggle('hidden', e.target.value !== 'test');
+            if (e.isTrusted) sendCommand('tx_mode', e.target.value);
+        });
+
+        // Add the Lock to Rx listener here
+        document.getElementById('txLockRx').addEventListener('change', (e) => {
+            if (e.isTrusted) sendCommand('tx_follow_rx', e.target.checked);
+            
+            // Dim and disable interaction locally for immediate feedback
+            const isLocked = e.target.checked;
+            document.getElementById('txBeamVisualizerGrp').style.opacity = isLocked ? '0.4' : '1';
+            document.getElementById('txBeamVisualizerGrp').style.pointerEvents = isLocked ? 'none' : 'auto';
+            document.getElementById('txManualPhaseGrp').style.opacity = isLocked ? '0.4' : '1';
+            document.getElementById('txManualPhaseGrp').style.pointerEvents = isLocked ? 'none' : 'auto';
+        });
+
+        document.querySelectorAll('.tx-ant-en').forEach(cb => {
+            cb.addEventListener('change', (e) => {
+                if (e.isTrusted) {
+                    sendCommand('tx_ant_enables', {
+                        a1: document.getElementById('txAnt1').checked, a2: document.getElementById('txAnt2').checked,
+                        a3: document.getElementById('txAnt3').checked, a4: document.getElementById('txAnt4').checked
+                    });
+                }
+            });
+        });
+        
+        document.getElementById('txControlModeToggle').addEventListener('change', (e) => {
+            document.getElementById('txBeamVisualizerGrp').classList.toggle('hidden', e.target.checked);
+            document.getElementById('txManualPhaseGrp').classList.toggle('hidden', !e.target.checked);
+        });
+
+        bindPhaseControls('tx');
+    </script>
+</body>
+</html>

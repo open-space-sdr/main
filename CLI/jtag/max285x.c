@@ -372,16 +372,42 @@ int max2850_tx_on(int fd,
 {
     if (bw_mhz != 20 && bw_mhz != 40) { errno = EINVAL; return -1; }
 
-    /* MODE=011 (TX), BW forced; preserve other bits from template */
-    uint16_t reg0 = main0_force_mode_bw((uint16_t)max2850_base_regs[0], (3u << 2), bw_mhz);
+    /* --- READ LIVE STATE --- */
+    // Route SPI readback to DOUT to read the MAX2850
+    uint16_t orig_reg14 = max2850_base_regs[14];
+    if (max2850_word(fd, 14, orig_reg14 | (1 << 1)) != 0) return -1;
 
-    /* If antennas specified, update E_TX bits (D8:D5). */
+    // Send read command for Register 0
+    uint16_t read_cmd = 0x8000 | (0 << 10);
+    jtag_write_u16(fd, MAX2850_REG_ADDR, read_cmd);
+
+    // Fetch the result
+    uint16_t current_reg0 = 0;
+    jtag_read_u16(fd, MAX2850_REG_ADDR, &current_reg0);
+
+    // Restore DOUT routing
+    max2850_word(fd, 14, orig_reg14);
+
+    /* --- MODIFY STATE --- */
+    // Strip down to the 10-bit payload
+    current_reg0 &= 0x3FF;
+
+    // Clear MODE (bits 4:2) and BW (bit 1)
+    current_reg0 &= (uint16_t)~((0x7u << 2) | (1u << 1));
+
+    // Force TX Mode (011) and selected BW
+    current_reg0 |= (3u << 2);
+    if (bw_mhz == 40) current_reg0 |= (1u << 1);
+
+    // If antennas are explicitly specified, update E_TX bits (D8:D5).
+    // Otherwise, leave them alone to preserve hardware state!
     if (set_antennas) {
-        reg0 &= (uint16_t)~(0xFu << 5);
-        reg0 |= (uint16_t)((antennas_mask & 0xFu) << 5);
+        current_reg0 &= (uint16_t)~(0xFu << 5);
+        current_reg0 |= (uint16_t)((antennas_mask & 0xFu) << 5);
     }
 
-    if (max2850_word(fd, 0, reg0) != 0) return -1;
+    /* --- WRITE STATE --- */
+    if (max2850_word(fd, 0, current_reg0) != 0) return -1;
 
     if (set_freq) {
         if (max2850_set_freq_mhz(fd, freq_mhz) != 0) return -1;
@@ -391,7 +417,7 @@ int max2850_tx_on(int fd,
         if (max2850_set_tx_gain(fd, gain) != 0) return -1;
     }
 
-    /* FPGA global setting: enable delta-sigma / RF switch path for TX (legacy behavior) */
+    /* FPGA global setting: enable delta-sigma / RF switch path for TX */
     if (jtag_write_u16(fd, 0x23, 0x0000) != 0) return -1;
 
     /* Enable PA Bias */

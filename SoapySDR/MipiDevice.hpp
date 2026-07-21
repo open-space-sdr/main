@@ -9,45 +9,58 @@
 #include <complex>
 #include <cstring>
 #include <utility>
+#include <mutex>
+#include <stdexcept>
+#include <sys/ioctl.h>
+#include <linux/types.h>
 #include <arm_neon.h> 
 
 #include "Farrow.hpp" 
 
-static constexpr const double RX_LINE_RATE = ((131072.0/142638.0)*88.0e6);
+static constexpr const double RX_LINE_RATE = ((131072.0/142638.0)*87.5e6);
 
-// Fallback UAPI definitions in case headers are not available at build time.
+// DSI TX default timing.  Userspace writes only active RGB payload bytes, but
+// the physical DSI frame also contains per-line and per-frame overhead.  When
+// deriving the native TX sample rate from the DSI byte clock, use payload/total.
+static constexpr const double TX_DSI_BYTE_RATE_DEFAULT = 175.0e6;
+static constexpr const double TX_DEFAULT_PAYLOAD_BYTES_PER_FRAME = 3072.0 * 1080.0;
+static constexpr const double TX_DEFAULT_TOTAL_BYTES_PER_FRAME =
+    TX_DEFAULT_PAYLOAD_BYTES_PER_FRAME + (4.0 + 2.0 + 36.0) * 1080.0 + 9342.0;
+static constexpr const double TX_DEFAULT_PAYLOAD_FRACTION =
+    TX_DEFAULT_PAYLOAD_BYTES_PER_FRAME / TX_DEFAULT_TOTAL_BYTES_PER_FRAME;
+
+// Prefer the exact kernel UAPI header when it is available.  The fallback
+// below intentionally matches fpga_csi.h from the kernel driver: keep the
+// struct layouts and ioctl numbers in lockstep with the driver.
+#if defined(__has_include)
+#  if __has_include("fpga_csi.h")
+#    include "fpga_csi.h"
+#    define MIPI_DEVICE_HAS_EXTERNAL_CSI_UAPI 1
+#  endif
+#endif
+
+#ifndef MIPI_DEVICE_HAS_EXTERNAL_CSI_UAPI
 #ifndef _UAPI_MIPI_CSI_RING_H_
 #define _UAPI_MIPI_CSI_RING_H_
-#include <sys/ioctl.h>
-#include <linux/types.h>
 
 #ifndef CSI_IOC_MAGIC
 #define CSI_IOC_MAGIC 'C'
 #endif
 
+#define CSI_VC_MAX 4
+
 struct csi_ring_info {
-    __u64 ring_size;     /* bytes (power-of-two) */
-    __u64 span_bytes;    /* producer writes in multiples of this (DMA span) */
-    __u32 head;          /* producer index modulo ring_size (bytes) */
-    __u32 tail;          /* consumer index modulo ring_size (bytes) */
-    __u32 _pad;
+    __u32 ring_size;     // bytes, page-aligned, mmap() length
+    __u32 span_bytes;    // producer writes in multiples of this
+    __u32 head;          // producer position, driver writes
+    __u32 tail;          // consumer position, userspace advances
 };
 
-#ifndef CSI_IOC_GET_RING_INFO
-#define CSI_IOC_GET_RING_INFO   _IOR(CSI_IOC_MAGIC, 0x40, struct csi_ring_info)
-#endif
 #ifndef CSI_IOC_CONSUME_BYTES
 #define CSI_IOC_CONSUME_BYTES   _IOW(CSI_IOC_MAGIC, 0x41, __u32)
 #endif
-
-struct csi_geometry {
-    __u32 bytes_per_line;
-    __u32 lines;
-    __u32 _pad0;
-    __u32 _pad1;
-};
-#ifndef CSI_IOC_SET_GEOMETRY
-#define CSI_IOC_SET_GEOMETRY _IOW(CSI_IOC_MAGIC, 0x02, struct csi_geometry)
+#ifndef CSI_IOC_GET_RING_INFO
+#define CSI_IOC_GET_RING_INFO   _IOR(CSI_IOC_MAGIC, 0x40, struct csi_ring_info)
 #endif
 
 struct csi_filter_cfg {
@@ -57,14 +70,23 @@ struct csi_filter_cfg {
     __u8  dt;
 };
 #ifndef CSI_IOC_SET_FILTER
-#define CSI_IOC_SET_FILTER _IOW(CSI_IOC_MAGIC, 0x03, struct csi_filter_cfg)
+#define CSI_IOC_SET_FILTER      _IOW(CSI_IOC_MAGIC, 0x01, struct csi_filter_cfg)
+#endif
+
+struct csi_geometry {
+    __u32 bytes_per_line;
+    __u32 lines;
+};
+#ifndef CSI_IOC_SET_GEOMETRY
+#define CSI_IOC_SET_GEOMETRY    _IOW(CSI_IOC_MAGIC, 0x05, struct csi_geometry)
 #endif
 
 #ifndef CSI_IOC_RESET
-#define CSI_IOC_RESET _IO(CSI_IOC_MAGIC, 0x06)
+#define CSI_IOC_RESET           _IO(CSI_IOC_MAGIC,  0x06)
 #endif
 
 #endif // _UAPI_MIPI_CSI_RING_H_
+#endif // !MIPI_DEVICE_HAS_EXTERNAL_CSI_UAPI
 
 #ifndef _UAPI_MIPI_DSI_MAP_H_
 #define _UAPI_MIPI_DSI_MAP_H_
@@ -157,6 +179,15 @@ public:
 
 private:
 
+    struct MipiStream
+    {
+        int dir = 0;
+        std::string format;
+        std::vector<size_t> channels;
+        bool active = false;
+        uint64_t id = 0;
+    };
+
     void initRx();
     void initTx();
     // utility
@@ -181,6 +212,14 @@ private:
     static void deinterleave_CS8_to_CF32_NEON(const int8_t *input, void * const *buffs, size_t numElems);
 
     // common state
+    mutable std::recursive_mutex deviceMutex_;
+    mutable std::recursive_mutex rxMutex_;
+    mutable std::recursive_mutex txMutex_;
+
+    uint64_t nextStreamId_{1};
+    bool rxStreamOpen_{false};
+    bool txStreamOpen_{false};
+
     std::string rxPath_, txPath_;
     int fdRx_{-1}, fdTx_{-1};
 
@@ -189,6 +228,10 @@ private:
 
     // TX geometry
     uint32_t txBytesPerLine_{0}, txLines_{0}, txFps_{0};
+    uint32_t txOverheadBytesPerLine_{42};
+    uint32_t txFrameExtraBytes_{9342};
+    double   txDsiByteRate_{TX_DSI_BYTE_RATE_DEFAULT};
+    double   txPayloadFraction_{TX_DEFAULT_PAYLOAD_FRACTION};
 
     // Formats
     bool txIsCF32_{false};
@@ -322,7 +365,8 @@ private:
     void txRingFlush_(long timeoutUs);
 
     double gain_ = 0.0;
-    std::string antennaSel_ = "RX";
+    std::string rxAntennaSel_ = "RX";
+    std::string txAntennaSel_ = "TX";
     double lastRxRate_ = 0.0;
     double sampleRateRatio_ = 1.0; // F_in / F_out
 

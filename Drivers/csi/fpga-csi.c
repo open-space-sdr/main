@@ -21,7 +21,9 @@
 //  ? No explicit STOPSTATE wait or watchdog.
 //  ? Userspace typically reads from /dev/csi_stream0 via read(), poll(), or
 //    can mmap() the ring and use the ring IOCTLs defined in fpga_csi.h.
-
+//
+// Copyright (C) 2025
+// License: GPL v2
 
 #include <linux/module.h>
 #include <linux/platform_device.h>
@@ -278,6 +280,8 @@ struct fpga_csi_dev {
     bool                  jtag_ready;
     struct mutex          jtag_lock;
     atomic_t             jtag_users;
+
+    struct csi_file_ctx  *jtag_owner;
 
     struct miscdevice     miscdev;
 };
@@ -1389,31 +1393,45 @@ case CSI_IOC_JTAG_SETUP: {
 
     case CSI_IOC_JTAG_REG_WRITE: {
         struct csi_jtag_reg r;
-        int ret;
+        int ret = 0;
 
         if (copy_from_user(&r, (void __user *)arg, sizeof(r)))
             return -EFAULT;
 
         mutex_lock(&cd->jtag_lock);
-        ret = csi_jtag_attach_locked(csi_ctx(f));
-        if (!ret)
-            ret = jtag_reg_write(cd, r.addr, r.value);
+        
+        /* THE MISSING LINK: Fail if someone else holds the lease */
+        if (cd->jtag_owner && cd->jtag_owner != csi_ctx(f)) {
+            ret = -EBUSY;
+        } else {
+            ret = csi_jtag_attach_locked(csi_ctx(f));
+            if (!ret)
+                ret = jtag_reg_write(cd, r.addr, r.value);
+        }
+        
         mutex_unlock(&cd->jtag_lock);
         return ret;
     }
 
     case CSI_IOC_JTAG_REG_READ: {
         struct csi_jtag_reg r;
-        int ret;
+        int ret = 0;
         u16 val;
 
         if (copy_from_user(&r, (void __user *)arg, sizeof(r)))
             return -EFAULT;
 
         mutex_lock(&cd->jtag_lock);
-        ret = csi_jtag_attach_locked(csi_ctx(f));
-        if (!ret)
-            ret = jtag_reg_read(cd, r.addr, &val);
+        
+        /* THE MISSING LINK: Fail if someone else holds the lease */
+        if (cd->jtag_owner && cd->jtag_owner != csi_ctx(f)) {
+            ret = -EBUSY;
+        } else {
+            ret = csi_jtag_attach_locked(csi_ctx(f));
+            if (!ret)
+                ret = jtag_reg_read(cd, r.addr, &val);
+        }
+        
         mutex_unlock(&cd->jtag_lock);
 
         if (ret)
@@ -1424,6 +1442,76 @@ case CSI_IOC_JTAG_SETUP: {
             return -EFAULT;
         return 0;
     }
+
+    /* --- Locked transactions IOCTL --- */
+    case CSI_IOC_JTAG_ACQUIRE_LEASE: {
+        int ret = 0;
+        struct csi_file_ctx *ctx = csi_ctx(f);
+
+        mutex_lock(&cd->jtag_lock);
+        if (cd->jtag_owner && cd->jtag_owner != ctx) {
+            ret = -EBUSY;
+        } else {
+            cd->jtag_owner = ctx;
+        }
+        mutex_unlock(&cd->jtag_lock);
+        return ret;
+    }
+
+    case CSI_IOC_JTAG_RELEASE_LEASE: {
+        struct csi_file_ctx *ctx = csi_ctx(f);
+
+        mutex_lock(&cd->jtag_lock);
+        if (cd->jtag_owner == ctx) {
+            cd->jtag_owner = NULL;
+        }
+        mutex_unlock(&cd->jtag_lock);
+        return 0;
+    }
+
+    /* --- BATCH IOCTL --- */
+    case CSI_IOC_JTAG_BATCH_WRITE: {
+        struct csi_file_ctx *ctx = csi_ctx(f);
+        struct csi_jtag_batch batch;
+        struct csi_jtag_reg *regs;
+        int i, ret = 0;
+
+        if (copy_from_user(&batch, (void __user *)arg, sizeof(batch)))
+            return -EFAULT;
+
+        if (batch.count == 0 || batch.count > 1024)
+            return -EINVAL;
+
+        /* Standard kernel way to safely duplicate a user array */
+        regs = memdup_user((void __user *)(uintptr_t)batch.regs_ptr, 
+                           batch.count * sizeof(struct csi_jtag_reg));
+        if (IS_ERR(regs))
+            return PTR_ERR(regs);
+
+        mutex_lock(&cd->jtag_lock);
+        
+        /* Enforce lease protection */
+        if (cd->jtag_owner && cd->jtag_owner != ctx) {
+            ret = -EBUSY;
+            goto batch_out;
+        }
+
+        ret = csi_jtag_attach_locked(ctx);
+        if (!ret) {
+            for (i = 0; i < batch.count; i++) {
+                ret = jtag_reg_write(cd, regs[i].addr, regs[i].value);
+                if (ret) break;
+                if (batch.delay_us) 
+                    udelay(batch.delay_us);
+            }
+        }
+
+    batch_out:
+        mutex_unlock(&cd->jtag_lock);
+        kfree(regs);
+        return ret;
+    }
+
     default:
         return -ENOTTY;
     }
@@ -1466,6 +1554,12 @@ static int csi_release(struct inode *inode, struct file *f)
     cd = ctx->cd;
 
     mutex_lock(&cd->jtag_lock);
+    
+    /* Drop lease if this process owned it */
+    if (cd->jtag_owner == ctx) {
+        cd->jtag_owner = NULL;
+    }
+
     if (ctx->jtag_attached) {
         ctx->jtag_attached = false;
         csi_jtag_detach_locked(cd);
@@ -1775,7 +1869,7 @@ static struct platform_driver fpga_csi_driver = {
 };
 module_platform_driver(fpga_csi_driver);
 
-MODULE_AUTHOR("Martin McCormick - martin@moonrf.com");
+MODULE_AUTHOR("open.space team");
 MODULE_DESCRIPTION("RP1 CSI-2 RAW8/RAW10 DMA char device (/dev/csi_stream0) "
                    "with error recovery and single-geometry setup");
 MODULE_LICENSE("GPL");

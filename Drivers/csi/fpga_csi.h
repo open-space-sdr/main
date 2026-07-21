@@ -46,10 +46,21 @@ struct csi_jtag_reg {
     __u16 _pad;   /* reserved / alignment */
 };
 
+/* batch JTAG transactions */
+struct csi_jtag_batch {
+    __u64 regs_ptr;  /* User pointer to array of struct csi_jtag_reg */
+    __u32 count;     /* Number of registers to process */
+    __u32 delay_us;  /* Optional microsecond delay between writes */
+};
+
 #define CSI_IOC_JTAG_SETUP      _IO(CSI_IOC_MAGIC,  0x10)
 #define CSI_IOC_JTAG_RELEASE    _IO(CSI_IOC_MAGIC,  0x11)
 #define CSI_IOC_JTAG_REG_WRITE  _IOW(CSI_IOC_MAGIC, 0x12, struct csi_jtag_reg)
 #define CSI_IOC_JTAG_REG_READ   _IOWR(CSI_IOC_MAGIC,0x13, struct csi_jtag_reg)
+
+#define CSI_IOC_JTAG_BATCH_WRITE   _IOW(CSI_IOC_MAGIC, 0x14, struct csi_jtag_batch)
+#define CSI_IOC_JTAG_ACQUIRE_LEASE _IO(CSI_IOC_MAGIC,  0x15)
+#define CSI_IOC_JTAG_RELEASE_LEASE _IO(CSI_IOC_MAGIC,  0x16)
 
 /* ---- Config / filter knobs ---- */
 struct csi_filter_cfg {
